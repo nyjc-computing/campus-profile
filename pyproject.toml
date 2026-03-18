@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "nyxchange-timetable-v2"
+version = "0.1.0"
+description = "NYXchange Timetable (v2)"
+authors = ["Matthew Na <na.hou.boon.matthew_2025@nyjc.edu.sg>"]
+
+[tool.poetry.dependencies]
+python = ">=3.11.0,<3.12"
+
+# Client library dependencies (minimal for HTTP requests)
+flask = "^3.0.0"
+campus-suite = {git = "https://github.com/nyjc-computing/campus.git", branch = "weekly"}
+campus-api-python = {git = "https://github.com/nyjc-computing/campus-api-python.git", branch = "main"}
+
+# Deployment orchestration dependencies (all services) - required for deployment
+gunicorn = "^21.2.0"
+werkzeug = "^3.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^3.0"
+
+[tool.pyright]
+# https://github.com/microsoft/pyright/blob/main/docs/configuration.md
+useLibraryCodeForTypes = true
+exclude = [".cache"]
+
+[tool.ruff]
+# https://beta.ruff.rs/docs/configuration/
+select = ['E', 'W', 'F', 'I', 'B', 'C4', 'ARG', 'SIM']
+ignore = ['W291', 'W292', 'W293']
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
