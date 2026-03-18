@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "nyxchange-timetable-v2"
+name = "campus-profile"
 version = "0.1.0"
-description = "NYXchange Timetable (v2)"
+description = "Campus Profile"
 authors = ["Matthew Na <na.hou.boon.matthew_2025@nyjc.edu.sg>"]
 
 [tool.poetry.dependencies]
