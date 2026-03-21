@@ -17,7 +17,11 @@ def debug():
 
 client = Campus(timeout=30, mode="server")
 
-login_manager = flask_campus.OAuthLoginManager(default_endpoint="get_profile_page") # Using default parameters
+login_manager = flask_campus.OAuthLoginManager(
+    campus_client=client,
+    default_endpoint="get_profile_page"
+) # Using default parameters
+
 login_manager.init_app(app)
 
 @app.get("/profile/")
