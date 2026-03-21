@@ -2,7 +2,7 @@
 
 import os
 
-import campus_python
+from campus_python import Campus
 import flask
 from campus import flask_campus
 
@@ -15,16 +15,26 @@ def debug():
     app.debug = True
     print("Running in debug mode!")
 
+client = Campus(timeout=30, mode="server")
+
 login_manager = flask_campus.OAuthLoginManager(default_endpoint="get_profile_page") # Using default parameters
 login_manager.init_app(app)
 
 @app.get("/profile/")
+@login_manager.login_required
 def get_profile_page():
-    return flask.render_template('profile.html')
+    """Profile page. Requires the user to be logged in already."""
+    user_obj = flask.g.user
+    
+    return flask.render_template('profile.html', user_obj=user_obj)
 
 @app.get("/profile/integrations")
+@login_manager.login_required
 def get_integrations_page():
-    return flask.render_template("integrations.html")
+    """Integrations page. Requires the user to be logged in already."""
+    user_obj = flask.g.user
+
+    return flask.render_template("integrations.html", user_obj=user_obj)
 
 
 debug()
