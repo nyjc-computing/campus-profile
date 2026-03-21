@@ -13,7 +13,7 @@ def debug():
 
 @app.route('/')
 def index():
-    return "This is the index page!"
+    return flask.render_template("index.html")
 
 debug()
 
