@@ -1,19 +1,31 @@
 """Main program file for Campus Profile"""
 
+import os
+
 import campus_python
 import flask
 from campus import flask_campus
 
+
 app = flask.Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY")
 
 def debug():
     """Run to enable debug mode."""
     app.debug = True
     print("Running in debug mode!")
 
-@app.route('/')
-def index():
-    return flask.render_template("index.html")
+login_manager = flask_campus.OAuthLoginManager(default_endpoint="get_profile_page") # Using default parameters
+login_manager.init_app(app)
+
+@app.get("/profile/")
+def get_profile_page():
+    return flask.render_template('profile.html')
+
+@app.get("/profile/integrations")
+def get_integrations_page():
+    return flask.render_template("integrations.html")
+
 
 debug()
 
