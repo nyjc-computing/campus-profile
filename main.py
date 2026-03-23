@@ -27,7 +27,7 @@ login_manager = flask_campus.OAuthLoginManager(
 login_manager.init_app(app)
 
 @app.get("/profile/")
-#@login_manager.login_required
+@login_manager.login_required
 def get_profile_page():
     """Profile page. Requires the user to be logged in already."""
     user: User = flask.g.user
