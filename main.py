@@ -6,6 +6,7 @@ from campus_python import Campus
 import flask
 from campus import flask_campus
 from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
+from campus_python.errors import AuthenticationError
 from campus.model import User
 
 
@@ -26,6 +27,11 @@ login_manager = flask_campus.OAuthLoginManager(
 
 login_manager.init_app(app)
 
+@app.get("/")
+def get_index_page():
+    """The landing page for users who are not signed into the application yet."""
+    return flask.render_template("index.html")
+
 @app.get("/profile/")
 @login_manager.login_required
 def get_profile_page():
@@ -39,15 +45,14 @@ def get_profile_page():
 def get_integrations_page():
     """Integrations page. Requires the user to be logged in already."""
     user: User = flask.g.user
-    credentials_resource = client.auth.credentials
     cur_integrations = []
     
     for provider in INTEGRATIONS_LIST:
-        user_credentials = credentials_resource[provider][user.id].get()
-
-        if user_credentials.token: # existence of token means integrated?
-            cur_integrations.append((provider, user_credentials.token.access_token))
-
+        try:
+            token = client.auth.get_token(provider) # user_id is automatically provided in function
+            cur_integrations.append((provider, token.access_token))
+        except AuthenticationError as e:
+            print(e)
 
     return flask.render_template("integrations.html", cur_integrations=cur_integrations)
 
