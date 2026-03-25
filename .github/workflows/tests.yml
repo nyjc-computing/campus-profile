@@ -30,5 +30,8 @@ jobs:
         with:
           cache: 'poetry'
       - name: Run Unit Tests
+        env:
+          CLIENT_ID: test-client-id
+          CLIENT_SECRET: test-client-secret
         run: .venv/bin/python testing.py
       
