@@ -1,19 +1,61 @@
 """Main program file for Campus Profile"""
 
-import campus_python
+import os
+
+from campus_python import Campus
 import flask
 from campus import flask_campus
+from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
+from campus_python.errors import AuthenticationError
+from campus.model import User
+
 
 app = flask.Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY")
 
 def debug():
     """Run to enable debug mode."""
     app.debug = True
     print("Running in debug mode!")
 
-@app.route('/')
-def index():
+client = Campus(timeout=30, mode="server")
+
+login_manager = flask_campus.OAuthLoginManager(
+    campus_client=client,
+    default_endpoint="get_profile_page"
+) # Using default parameters
+
+login_manager.init_app(app)
+
+@app.get("/")
+def get_index_page():
+    """The landing page for users who are not signed into the application yet."""
     return flask.render_template("index.html")
+
+@app.get("/profile/")
+@login_manager.login_required
+def get_profile_page():
+    """Profile page. Requires the user to be logged in already."""
+    user: User = flask.g.user
+
+    return flask.render_template('profile.html', user=user)
+
+@app.get("/profile/integrations")
+@login_manager.login_required
+def get_integrations_page():
+    """Integrations page. Requires the user to be logged in already."""
+    user: User = flask.g.user
+    cur_integrations = []
+    
+    for provider in INTEGRATIONS_LIST:
+        try:
+            token = client.auth.get_token(provider) # user_id is automatically provided in function
+            cur_integrations.append((provider, token.access_token))
+        except AuthenticationError as e:
+            print(e)
+
+    return flask.render_template("integrations.html", cur_integrations=cur_integrations)
+
 
 debug()
 
