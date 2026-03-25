@@ -57,8 +57,7 @@ def get_integrations_page():
     return flask.render_template("integrations.html", cur_integrations=cur_integrations)
 
 
-debug()
-
 if __name__ == '__main__':
+    debug()
     app.run(host="0.0.0.0", port=5000)
     
