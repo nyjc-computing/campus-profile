@@ -52,6 +52,12 @@ def debug_env():
         env_hostname_works = False
         env_hostname_value = str(e)
 
+    # Check the url module's env reference
+    from campus.common.utils import url
+    url_env_module = getattr(url, 'env', None)
+    url_env_id = id(url_env_module) if url_env_module else None
+    main_env_id = id(env)
+
     return {
         "import_time_hostname": _import_time_hostname,
         "os_environ_has_HOSTNAME": has_hostname_in_os,
@@ -59,6 +65,11 @@ def debug_env():
         "env_HOSTNAME_works": env_hostname_works,
         "env_HOSTNAME_value": env_hostname_value,
         "all_env_vars": {k: v for k, v in os.environ.items() if "HOST" in k.upper()},
+        "module_ids": {
+            "main_env_id": main_env_id,
+            "url_env_id": url_env_id,
+            "same_module": url_env_id == main_env_id,
+        },
     }
 
 @app.get("/profile/")
