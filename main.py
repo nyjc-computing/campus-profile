@@ -8,7 +8,14 @@ from campus import flask_campus
 from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
 from campus_python.errors import AuthenticationError
 from campus.model import User
+import campus.common.env as env
 
+# Debug: Check if HOSTNAME is available at import time
+_import_time_hostname = None
+try:
+    _import_time_hostname = env.HOSTNAME
+except AttributeError:
+    _import_time_hostname = f"NOT AVAILABLE - keys: {list(env.keys())}"
 
 app = flask.Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
@@ -35,7 +42,6 @@ def get_index_page():
 @app.get("/debug/env")
 def debug_env():
     """Debug endpoint to check environment variables."""
-    import campus.common.env as env
     has_hostname_in_os = "HOSTNAME" in os.environ
     hostname_in_os = os.environ.get("HOSTNAME", "NOT SET")
     try:
@@ -47,6 +53,7 @@ def debug_env():
         env_hostname_value = str(e)
 
     return {
+        "import_time_hostname": _import_time_hostname,
         "os_environ_has_HOSTNAME": has_hostname_in_os,
         "os_environ_HOSTNAME_value": hostname_in_os,
         "env_HOSTNAME_works": env_hostname_works,
