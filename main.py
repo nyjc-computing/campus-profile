@@ -32,6 +32,28 @@ def get_index_page():
     """The landing page for users who are not signed into the application yet."""
     return flask.render_template("index.html")
 
+@app.get("/debug/env")
+def debug_env():
+    """Debug endpoint to check environment variables."""
+    import campus.common.env as env
+    has_hostname_in_os = "HOSTNAME" in os.environ
+    hostname_in_os = os.environ.get("HOSTNAME", "NOT SET")
+    try:
+        hostname_via_env = env.HOSTNAME
+        env_hostname_works = True
+        env_hostname_value = hostname_via_env
+    except AttributeError as e:
+        env_hostname_works = False
+        env_hostname_value = str(e)
+
+    return {
+        "os_environ_has_HOSTNAME": has_hostname_in_os,
+        "os_environ_HOSTNAME_value": hostname_in_os,
+        "env_HOSTNAME_works": env_hostname_works,
+        "env_HOSTNAME_value": env_hostname_value,
+        "all_env_vars": {k: v for k, v in os.environ.items() if "HOST" in k.upper()},
+    }
+
 @app.get("/profile/")
 @login_manager.login_required
 def get_profile_page():
