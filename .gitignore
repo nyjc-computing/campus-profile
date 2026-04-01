@@ -205,3 +205,41 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# System files
+*.DS_Store
+Thumbs.db
+
+# Sensitive files and directories
+.claude/
+.claude-memory/
+*.key
+*.pem
+*.cert
+*.crt
+secrets/
+credentials/
+*.credentials.json
+
+# Development database
+test.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Deployment artifacts
+deploy
+*.tar.gz
+*.zip
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Playwright auth state (contains session cookies/tokens)
+.playwright_auth_state.json
