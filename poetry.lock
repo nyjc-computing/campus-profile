@@ -131,7 +131,7 @@ crt = ["awscrt (==0.31.2)"]
 
 [[package]]
 name = "campus-api-python"
-version = "0.1.47"
+version = "0.1.48"
 description = "Campus API for Python projects"
 optional = false
 python-versions = ">=3.11,<3.12"
@@ -147,7 +147,7 @@ flask = "^3.0.0"
 type = "git"
 url = "https://github.com/nyjc-computing/campus-api-python.git"
 reference = "main"
-resolved_reference = "f4bfc601e343adafd962210e0fe38c384ccd1390"
+resolved_reference = "294efd3027e5b9a9f3edb399d8a835ef2d09bcab"
 
 [[package]]
 name = "campus-suite"
