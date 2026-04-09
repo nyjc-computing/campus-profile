@@ -3,6 +3,7 @@
 import os
 
 from campus_python import Campus
+from campus_python.errors import NotFoundError
 import flask
 from campus import flask_campus
 from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
@@ -48,9 +49,10 @@ def get_integrations_page():
     
     for provider in INTEGRATIONS_LIST:
         try:
-            token = client.auth.get_token(provider) # user_id is automatically provided in function
-            cur_integrations.append((provider, token.access_token))
-        except AuthenticationError as e:
+            token = client.auth.credentials[provider][user.id].get().token
+            if token:
+                cur_integrations.append((provider, token.access_token))     
+        except NotFoundError as e:
             print(e)
 
     return flask.render_template("integrations.html", cur_integrations=cur_integrations)
