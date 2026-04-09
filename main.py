@@ -10,7 +10,6 @@ from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
 from campus_python.errors import AuthenticationError
 from campus.model import User
 
-
 app = flask.Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
 
@@ -58,8 +57,8 @@ def get_integrations_page():
 
     return flask.render_template("integrations.html", cur_integrations=cur_integrations)
 
-debug()
 
 if __name__ == '__main__':
+    debug()
     app.run(host="0.0.0.0", port=5000)
     
