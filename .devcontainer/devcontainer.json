@@ -1,6 +1,8 @@
 {
-	"name": "Python DevContainer",
-	"image": "mcr.microsoft.com/devcontainers/python:3.11",
+	"name": "Python Flask DevContainer",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
 	"customizations": {
 		"vscode": {
 			"settings": {
@@ -12,6 +14,6 @@
 			]
 		}
 	},
-	"postCreateCommand": "bash .devcontainer/post-create.sh",
+	"postCreateCommand": "poetry install --no-root",
 	"remoteUser": "vscode"
 }
