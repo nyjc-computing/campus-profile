@@ -2,13 +2,12 @@
 
 import os
 
-from campus_python import Campus
-from campus_python.errors import NotFoundError
-import flask
 from campus import flask_campus
 from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
-from campus_python.errors import AuthenticationError
 from campus.model import User
+from campus_python import Campus, errors
+import flask
+
 
 app = flask.Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
@@ -52,8 +51,14 @@ def get_integrations_page():
             token = client.auth.credentials[provider][user.id].get().token
             if token:
                 cur_integrations.append((provider, token.access_token))     
-        except NotFoundError as e:
-            print(e)
+        except errors.NotFoundError as e:
+            # No credentials found for this provider, skip it
+            continue
+        except errors.APIError as e:
+            raise RuntimeError(
+                f"Unhandled login error getting token for {provider}: "
+                f"{str(e)}"
+            )
 
     return flask.render_template("integrations.html", cur_integrations=cur_integrations)
 
