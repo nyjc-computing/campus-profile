@@ -28,7 +28,9 @@ login_manager.init_app(app)
 
 @app.get("/")
 def get_index_page():
-    """The landing page for users who are not signed into the application yet."""
+    """The landing page for users who are not signed into the
+    application yet.
+    """
     return flask.render_template("index.html")
 
 @app.get("/profile/")
