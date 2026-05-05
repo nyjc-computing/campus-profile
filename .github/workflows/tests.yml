@@ -29,6 +29,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           cache: 'poetry'
-      - name: Run Unit Tests
-        run: .venv/bin/python testing.py
+      - name: Run Tests
+        env:
+          CLIENT_ID: test-client-id
+          CLIENT_SECRET: test-client-secret
+          HOSTNAME: localhost:5000
+        run: .venv/bin/python -m unittest discover tests
       

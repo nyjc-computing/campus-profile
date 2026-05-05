@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Integrations Page{% endblock %}
+
+{% block content %}
+<p>See your integrations here!</p>
+
+<table>
+    <tr>
+        <th>Provider</th>
+        <th>Token</th>
+    </tr>
+    {% for i in range(cur_integrations|length) %}
+    <tr>
+        <td>{{cur_integrations[i][0]}}</td>
+        <td>{{cur_integrations[i][1]}}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

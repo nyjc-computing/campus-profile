@@ -1,5 +1,0 @@
-[phases.build]
-cmds = ["poetry install --no-interaction --no-ansi --only main --no-root"]
-
-[phases.start]
-cmd = "gunicorn --bind 0.0.0.0:$PORT main:app"
