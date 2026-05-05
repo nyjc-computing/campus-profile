@@ -1,6 +1,6 @@
 {
 	"name": "Python Flask DevContainer",
-	"image": "mcr.microsoft.com/devcontainers/python:3.11",
+	"image": "mcr.microsoft.com/devcontainers/python:3.12",
 	"customizations": {
 		"vscode": {
 			"settings": {
