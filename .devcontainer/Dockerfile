@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:3.11
+FROM mcr.microsoft.com/devcontainers/python:3.12
 
 # Install GitHub CLI
 RUN rm -f /etc/apt/sources.list.d/yarn*.list || true && \
