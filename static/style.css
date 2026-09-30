@@ -1,0 +1,13 @@
+/* Campus Profile — light touches on top of Bootstrap */
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+.integration-card {
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.integration-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12) !important;
+}

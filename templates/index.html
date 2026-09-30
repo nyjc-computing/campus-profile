@@ -1,7 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Landing Page{% endblock %}
+{% block title %}Welcome — Campus Profile{% endblock %}
 
 {% block content %}
-<h2>Welcome to the Campus Profile app!</h2>
-<a href="/login">Sign up with Google</a>
+<div class="container py-5 text-center">
+    <h1 class="display-6">Welcome to Campus Profile</h1>
+    <p class="lead text-muted">
+        View your profile, connected integrations, and account activity.
+    </p>
+    <a class="btn btn-primary btn-lg" href="/login">
+        <i class="bi bi-box-arrow-in-right me-1"></i>Sign in
+    </a>
+</div>
 {% endblock %}
