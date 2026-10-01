@@ -1,9 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Profile Page{% endblock %}
+{% block title %}Profile — Campus Profile{% endblock %}
 
 {% block content %}
-<h2>Hello {{user.name}}! ({{user.email}})</h2>
-<p>This is the profile page!</p>
+<div class="container py-4">
+    <div class="card shadow-sm" style="max-width: 32rem;">
+        <div class="card-body">
+            <div class="d-flex align-items-center mb-3">
+                <i class="bi bi-person-circle display-5 me-3"></i>
+                <div>
+                    <h2 class="h4 mb-0">{{ user.name }}</h2>
+                    <p class="text-muted mb-0">{{ user.email }}</p>
+                </div>
+            </div>
+            <p class="text-muted small mb-0">
+                Member since {{ user.created_at | timestamp }}
+            </p>
+        </div>
+    </div>
 
-<a href="/profile/integrations">Integrations</a>
+    <a class="btn btn-outline-primary mt-3" href="/profile/integrations">
+        <i class="bi bi-plug me-1"></i>Your integrations
+    </a>
+</div>
 {% endblock %}

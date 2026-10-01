@@ -3,11 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% endblock %}</title>
-    <link rel="stylesheet" href="{{url_for('static', filename='style.css')}}">
-    {% block head_extra %}{% endblock %}
+    <title>{% block title %}Campus Profile{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-    {% block content %}{% endblock %}
+<body class="d-flex flex-column min-vh-100">
+    <header>
+        <nav class="navbar navbar-light bg-light border-bottom">
+            <div class="container">
+                <a class="navbar-brand mb-0" href="/"><i class="bi bi-person-badge me-1"></i>Campus Profile</a>
+                {% if g.user %}
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted small d-none d-md-inline">{{ g.user.email }}</span>
+                    <a class="btn btn-sm btn-outline-secondary" href="/logout">Log out</a>
+                </div>
+                {% else %}
+                <a class="btn btn-sm btn-outline-primary" href="/login">Sign in</a>
+                {% endif %}
+            </div>
+        </nav>
+    </header>
+
+    <main class="flex-grow-1">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="container pt-3">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="border-top py-3 mt-auto">
+        <div class="container text-center text-muted">
+            <small>Campus Profile</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

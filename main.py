@@ -3,10 +3,11 @@
 import os
 
 from campus import flask_campus
-from campus.auth.oauth_proxy import __all__ as INTEGRATIONS_LIST
 from campus.model import User
-from campus_python import Campus, errors
+from campus_python import Campus
 import flask
+
+import integrations
 
 
 app = flask.Flask(__name__)
@@ -25,6 +26,18 @@ login_manager = flask_campus.OAuthLoginManager(
 ) # Using default parameters
 
 login_manager.init_app(app)
+
+
+@app.template_filter("timestamp")
+def timestamp(value, fmt: str = "%Y-%m-%d") -> str:
+    """Format a campus DateTime (a string subclass) for display."""
+    if not value:
+        return "Unknown"
+    try:
+        return value.to_datetime().strftime(fmt)
+    except AttributeError:
+        return str(value)
+
 
 @app.get("/")
 def get_index_page():
@@ -46,26 +59,26 @@ def get_profile_page():
 def get_integrations_page():
     """Integrations page. Requires the user to be logged in already."""
     user: User = flask.g.user
-    cur_integrations = []
-    
-    for provider in INTEGRATIONS_LIST:
-        try:
-            token = client.auth.credentials[provider][user.id].get().token
-            if token:
-                cur_integrations.append((provider, token.access_token))     
-        except errors.NotFoundError as e:
-            # No credentials found for this provider, skip it
-            continue
-        except errors.APIError as e:
-            raise RuntimeError(
-                f"Unhandled login error getting token for {provider}: "
-                f"{str(e)}"
-            )
 
-    return flask.render_template("integrations.html", cur_integrations=cur_integrations)
+    connections = [
+        integrations.get_integration_status(client, provider_id, user.id)
+        for provider_id in integrations.PROVIDERS
+    ]
+
+    unknown = [
+        connection["title"]
+        for connection in connections
+        if connection["status"] == integrations.STATUS_UNKNOWN
+    ]
+    if unknown:
+        flask.flash(
+            "Could not determine the status of: " + ", ".join(unknown),
+            "warning",
+        )
+
+    return flask.render_template("integrations.html", connections=connections)
 
 
 if __name__ == '__main__':
     debug()
     app.run(host="0.0.0.0", port=5000)
-    

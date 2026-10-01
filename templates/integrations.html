@@ -1,19 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Integrations Page{% endblock %}
+{% block title %}Integrations — Campus Profile{% endblock %}
 
 {% block content %}
-<p>See your integrations here!</p>
+<div class="container py-4">
+    <h1 class="h3 mb-3">Your integrations</h1>
 
-<table>
-    <tr>
-        <th>Provider</th>
-        <th>Token</th>
-    </tr>
-    {% for i in range(cur_integrations|length) %}
-    <tr>
-        <td>{{cur_integrations[i][0]}}</td>
-        <td>{{cur_integrations[i][1]}}</td>
-    </tr>
-    {% endfor %}
-</table>
+    <div class="integration-grid">
+        {% for connection in connections %}
+        <div class="card integration-card">
+            <div class="card-body d-flex align-items-center gap-2 p-2 px-3">
+                <i class="bi {{ connection.icon }} fs-4"></i>
+                <span class="text-truncate">{{ connection.title }}</span>
+                <span class="badge {{ connection.badge }} ms-auto flex-shrink-0">{{ connection.label }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
 {% endblock %}
