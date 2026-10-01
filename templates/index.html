@@ -7,8 +7,14 @@
     <p class="lead text-muted">
         View your profile, connected integrations, and account activity.
     </p>
+    {% if g.user %}
+    <a class="btn btn-primary btn-lg" href="/profile/">
+        <i class="bi bi-person-badge me-1"></i>Go to your profile
+    </a>
+    {% else %}
     <a class="btn btn-primary btn-lg" href="/login">
         <i class="bi bi-box-arrow-in-right me-1"></i>Sign in
     </a>
+    {% endif %}
 </div>
 {% endblock %}
