@@ -6,7 +6,7 @@ import unittest
 for _var, _value in (
     ("CLIENT_ID", "test-client-id"),
     ("CLIENT_SECRET", "test-client-secret"),
-    ("HOSTNAME", "localhost:5000"),
+    ("PUBLIC_URL", "http://localhost:5000"),
 ):
     os.environ.setdefault(_var, _value)
 

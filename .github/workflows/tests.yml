@@ -33,6 +33,6 @@ jobs:
         env:
           CLIENT_ID: test-client-id
           CLIENT_SECRET: test-client-secret
-          HOSTNAME: localhost:5000
+          PUBLIC_URL: http://localhost:5000
         run: .venv/bin/python -m unittest discover tests
       
