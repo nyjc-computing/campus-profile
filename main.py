@@ -22,8 +22,11 @@ client = Campus(timeout=30, mode="server")
 
 login_manager = flask_campus.OAuthLoginManager(
     campus_client=client,
-    default_endpoint="get_profile_page"
-) # Using default parameters
+    # Public landing page: logging out must not redirect into a
+    # login-protected route, or the user is bounced straight back
+    # into the OAuth flow.
+    default_endpoint="get_index_page"
+)
 
 login_manager.init_app(app)
 
