@@ -5,11 +5,12 @@
 }
 
 /* Auto-flowing card grid: fills as many columns as fit (1 on phones,
-   more as space allows), wraps gracefully as integrations are added. */
+   more as space allows), wraps gracefully as integrations are added.
+   320px floor leaves room for icon + title + badge + Disconnect. */
 .integration-grid {
     display: grid;
     gap: 0.75rem;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
 .integration-card {

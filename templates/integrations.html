@@ -12,6 +12,13 @@
                 <i class="bi {{ connection.icon }} fs-4"></i>
                 <span class="text-truncate">{{ connection.title }}</span>
                 <span class="badge {{ connection.badge }} ms-auto flex-shrink-0">{{ connection.label }}</span>
+                {% if connection.status in ('connected', 'expired') %}
+                {# TODO: wire up Disconnect — POST route to delete the stored
+                   credential (needs CSRF protection; deletes campus-side
+                   storage only, does not revoke the token with the provider). #}
+                <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0"
+                        disabled title="Not available yet">Disconnect</button>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
