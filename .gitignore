@@ -213,6 +213,7 @@ Thumbs.db
 # Sensitive files and directories
 .claude/
 .claude-memory/
+.zcode/
 *.key
 *.pem
 *.cert
