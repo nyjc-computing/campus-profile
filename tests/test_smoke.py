@@ -112,7 +112,6 @@ class GetIntegrationStatusTest(unittest.TestCase):
         import integrations
         status = self._status(error=errors.NotFoundError("no credentials"))
         self.assertEqual(status["status"], integrations.STATUS_NOT_CONNECTED)
-        self.assertIsNone(status["expires_at"])
 
     def test_connected_with_valid_token(self):
         """A live token means the integration is active."""
@@ -120,9 +119,6 @@ class GetIntegrationStatusTest(unittest.TestCase):
         creds = _FakeUserCredentials(token=_FakeToken(expired=False))
         status = self._status(creds=creds)
         self.assertEqual(status["status"], integrations.STATUS_CONNECTED)
-        self.assertEqual(status["scopes"], ["read:user"])
-        self.assertEqual(status["expires_at"], "2099-01-01T00:00:00Z")
-        self.assertEqual(status["connected_at"], "2026-01-01T00:00:00Z")
 
     def test_expired_token(self):
         """An expired token is surfaced distinctly from a live one."""
@@ -148,11 +144,12 @@ class GetIntegrationStatusTest(unittest.TestCase):
         self.assertEqual(status["status"], integrations.STATUS_UNKNOWN)
 
     def test_status_never_contains_token_material(self):
-        """The view dict must never carry secret token material."""
+        """The view must not carry tokens or server-managed metadata."""
         creds = _FakeUserCredentials(token=_FakeToken())
         status = self._status(creds=creds)
-        self.assertNotIn("token", status)
-        self.assertNotIn("access_token", status)
+        for key in ("token", "access_token", "expires_at", "connected_at",
+                    "scopes", "refresh_token", "client_id"):
+            self.assertNotIn(key, status)
 
 
 class RouteSmokeTest(unittest.TestCase):

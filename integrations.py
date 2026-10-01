@@ -16,29 +16,17 @@ STATUS_UNKNOWN = "unknown"
 # label and Bootstrap badge classes per status.
 _STATUS_LABELS = {
     STATUS_CONNECTED: ("Connected", "bg-success"),
-    STATUS_EXPIRED: ("Token expired", "bg-warning text-dark"),
+    STATUS_EXPIRED: ("Expired", "bg-warning text-dark"),
     STATUS_NOT_CONNECTED: ("Not connected", "bg-secondary"),
-    STATUS_UNKNOWN: ("Status unavailable", "bg-danger"),
+    STATUS_UNKNOWN: ("Unknown", "bg-danger"),
 }
 
 # Placeholder registry: replace with a backend-provided registry
 # when the Campus API exposes one.
 PROVIDERS = {
-    "discord": {
-        "title": "Discord",
-        "description": "Link your Discord account for server and role access.",
-        "icon": "bi-discord",
-    },
-    "github": {
-        "title": "GitHub",
-        "description": "Connect GitHub for repository and coursework tooling.",
-        "icon": "bi-github",
-    },
-    "google": {
-        "title": "Google",
-        "description": "Connect Google Drive and Calendar to your Campus account.",
-        "icon": "bi-google",
-    },
+    "discord": {"title": "Discord", "icon": "bi-discord"},
+    "github": {"title": "GitHub", "icon": "bi-github"},
+    "google": {"title": "Google", "icon": "bi-google"},
 }
 
 
@@ -52,21 +40,18 @@ def _mark(view: dict, status: str) -> dict:
 def get_integration_status(client, provider_id: str, user_id: str) -> dict:
     """Build the display state for one provider connection.
 
-    Only derived, non-secret fields are returned -- token material must
-    never reach the template.
+    The view carries only the provider identity and its status -- token
+    material and connection metadata (scopes, timestamps) are
+    server-managed and must never reach the template.
     """
     meta = PROVIDERS[provider_id]
     view = {
         "id": provider_id,
         "title": meta["title"],
-        "description": meta["description"],
         "icon": meta["icon"],
         "status": STATUS_UNKNOWN,
         "label": None,
         "badge": None,
-        "expires_at": None,
-        "scopes": [],
-        "connected_at": None,
     }
 
     try:
@@ -79,12 +64,9 @@ def get_integration_status(client, provider_id: str, user_id: str) -> dict:
         # provider as unknown rather than crashing the page.
         return _mark(view, STATUS_UNKNOWN)
 
-    view["connected_at"] = creds.created_at
     token = getattr(creds, "token", None)
     if token is None:
         return _mark(view, STATUS_UNKNOWN)
-    view["expires_at"] = token.expires_at
-    view["scopes"] = list(token.scopes or [])
     if token.is_expired():
         return _mark(view, STATUS_EXPIRED)
     return _mark(view, STATUS_CONNECTED)
