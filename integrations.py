@@ -147,10 +147,10 @@ def disconnect(client, entry: dict, user_id: str) -> bool:
     none; raises only on real failures.
     """
     path = f"connections/{entry['base_provider']}/{entry['slug']}/"
-    # The client's delete() carries no query= parameter, and campus
-    # reads user_id from the query string only.
-    path = f"{path}?{urlencode({'user_id': user_id})}"
-    response = client.auth.client.delete(client.auth.make_path(path))
+    response = client.auth.client.delete(
+        client.auth.make_path(path),
+        query={"user_id": user_id},
+    )
     try:
         response.raise_for_status()
     except errors.NotFoundError:

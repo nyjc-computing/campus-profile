@@ -22,9 +22,7 @@ Notes for coding agents (and human contributors) working in this repo.
   servers run without debug, so template edits don't appear until restart
   unless `app.config["TEMPLATES_AUTO_RELOAD"] = True` is set. Both local
   servers set it; the deployed app intentionally does not.
-- `login_manager.login_required` forwarded keyword arguments only
-  (campus#772) — call decorated views with keyword args in tests until
-  whatever campus pin you have includes the fix.
-- The campus-python client's `delete()/put()/patch()` accept no `query=`
-  kwarg (campus-api-python#68) — build query strings into the path (see
-  `integrations.disconnect`) until your lock includes the fix.
+- Older upstream pins had two kwarg gaps that matter for direct view
+  calls and non-GET query params (campus#772, campus-api-python#68).
+  This lock's pins (campus-suite 74738e1, campus-api-python 39a6285)
+  include both fixes — re-check if the lock ever moves backwards.

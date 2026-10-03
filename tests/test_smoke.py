@@ -2,7 +2,7 @@
 import os
 import unittest
 from types import SimpleNamespace
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 # Default to CI's dummy values so the suite runs without local setup.
 for _var, _value in (
@@ -103,8 +103,8 @@ class _FakeJsonClient:
         self.calls.append(("GET", path, query))
         return self.routes.get(("GET", path), _FakeResponse())
 
-    def delete(self, path, json=None):
-        self.calls.append(("DELETE", path, json))
+    def delete(self, path, _json=None, query=None):
+        self.calls.append(("DELETE", path, query))
         return self.routes.get(("DELETE", path), _FakeResponse())
 
 
@@ -320,8 +320,7 @@ class DisconnectUnitTest(unittest.TestCase):
         entry = integrations.registry_entry(
             REGISTRY_BODY["integrations"], "classroom")
         client = _campus({
-            ("DELETE", "/auth/v1/connections/google/classroom/"
-                       f"?{urlencode({'user_id': USER_ID})}"):
+            ("DELETE", "/auth/v1/connections/google/classroom/"):
                 _FakeResponse(status, {}),
         })
         result = integrations.disconnect(client, entry, USER_ID)
@@ -330,12 +329,11 @@ class DisconnectUnitTest(unittest.TestCase):
     def test_delete_hits_the_integration_route(self):
         """Two-segment form: /connections/google/classroom/?user_id=…."""
         _, client = self._disconnect(200)
-        method, path, _ = client.auth.client.calls[0]
+        method, path, query = client.auth.client.calls[0]
         self.assertEqual(method, "DELETE")
-        self.assertTrue(path.startswith(
-            "/auth/v1/connections/google/classroom/?"), path)
-        self.assertIn(
-            urlencode({"user_id": USER_ID}), path)
+        self.assertEqual(
+            path, "/auth/v1/connections/google/classroom/")
+        self.assertEqual(query, {"user_id": USER_ID})
 
     def test_200_means_disconnected(self):
         """200 {} deletes the stored grant."""
@@ -353,8 +351,7 @@ class DisconnectUnitTest(unittest.TestCase):
         entry = integrations.registry_entry(
             REGISTRY_BODY["integrations"], "classroom")
         client = _campus({
-            ("DELETE", f"/auth/v1/connections/google/classroom/"
-                       f"?{urlencode({'user_id': USER_ID})}"):
+            ("DELETE", "/auth/v1/connections/google/classroom/"):
                 _FakeResponse(503, {"error": {"code": "UNAVAILABLE"}}),
         })
         with self.assertRaises(errors.APIError):
@@ -467,8 +464,7 @@ class DisconnectRouteTest(_SignedInTest):
     def _post(self, delete_status=200):
         routes = {
             ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
-            ("DELETE", f"/auth/v1/connections/google/classroom/"
-                       f"?{urlencode({'user_id': USER_ID})}"):
+            ("DELETE", "/auth/v1/connections/google/classroom/"):
                 _FakeResponse(delete_status, {}),
         }
         client = _campus(routes)
@@ -503,8 +499,7 @@ class DisconnectRouteTest(_SignedInTest):
         """A campus outage degrades to a warning flash."""
         client = _campus({
             ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
-            ("DELETE", f"/auth/v1/connections/google/classroom/"
-                       f"?{urlencode({'user_id': USER_ID})}"):
+            ("DELETE", "/auth/v1/connections/google/classroom/"):
                 _FakeResponse(503, {"error": {"code": "UNAVAILABLE"}}),
         })
         self._signed_in("/profile/integrations/classroom/disconnect")
