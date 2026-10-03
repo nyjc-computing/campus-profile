@@ -214,6 +214,10 @@ Thumbs.db
 .claude/
 .claude-memory/
 .zcode/
+.zcodeignore
+
+# Local-only dev/agent tooling (live E2E harness etc.; see AGENTS.md if present)
+scripts/
 *.key
 *.pem
 *.cert
