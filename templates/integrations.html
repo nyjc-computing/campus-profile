@@ -24,7 +24,7 @@
                 {% endif %}
                 {% if connection.connectable and connection.id == 'classroom' %}
                 <a class="btn btn-sm btn-outline-primary"
-                   href="{{ url_for('get_classroom_connect') }}">Connect</a>
+                   href="{{ url_for('get_classroom_connect') }}">{% if connection.status == 'connected' %}Reconnect{% else %}Connect{% endif %}</a>
                 {% endif %}
                 {% if connection.status == 'connected' %}
                 <form method="post" class="d-inline mb-0"

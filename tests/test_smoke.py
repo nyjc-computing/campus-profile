@@ -417,15 +417,21 @@ class IntegrationsPageTest(_SignedInTest):
         # Only the connectable integration gets a Connect link, and it
         # points at the classroom connect flow (#23/#24).
         self.assertEqual(html.count("/profile/integrations/classroom/connect"), 1)
+        self.assertIn(">Connect</a>", html)
+        self.assertNotIn("Reconnect", html)
 
     def test_connected_user_sees_disconnect(self):
-        """A connected classroom shows Connected + a Disconnect form."""
+        """A connected classroom shows Connected + a Disconnect form.
+
+        The connect affordance stays (prompt=consent re-consent), but
+        reads Reconnect next to a Connected badge (#26 thread)."""
         self._signed_in("/profile/integrations")
         self._patch_client(_campus(self._routes({
             "connections": [CLASSROOM_CONNECTION]})))
         html = self.main.get_integrations_page()
 
         self.assertIn("Connected", html)
+        self.assertIn("Reconnect", html)
         self.assertIn('action="/profile/integrations/classroom/disconnect"', html)
         self.assertIn("confirm(", html)
 
