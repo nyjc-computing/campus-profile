@@ -12,6 +12,10 @@
                 <i class="bi {{ connection.icon }} fs-4"></i>
                 <span class="text-truncate">{{ connection.title }}</span>
                 <span class="badge {{ connection.badge }} ms-auto flex-shrink-0">{{ connection.label }}</span>
+                {% if connection.connect %}
+                <a class="btn btn-sm btn-outline-primary flex-shrink-0"
+                   href="{{ url_for('get_classroom_connect') }}">Connect</a>
+                {% endif %}
                 {% if connection.status in ('connected', 'expired') %}
                 {# TODO: wire up Disconnect — POST route to delete the stored
                    credential (needs CSRF protection; deletes campus-side

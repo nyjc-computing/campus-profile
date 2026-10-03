@@ -1,14 +1,15 @@
 """Main program file for Campus Profile"""
 
 import os
+import secrets
 
+import flask
 from campus import flask_campus
+from campus.common.utils import url as campus_url
 from campus.model import User
 from campus_python import Campus
-import flask
 
 import integrations
-
 
 app = flask.Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
@@ -80,6 +81,64 @@ def get_integrations_page():
         )
 
     return flask.render_template("integrations.html", connections=connections)
+
+
+# Single-use nonce for the classroom connect flow: it rides to
+# campus.auth inside the target URL and must ride back on the callback.
+# Binding it to the profile session means only a redirect this app
+# initiated can mark the integration connected.
+CLASSROOM_CONNECT_STATE = "classroom_connect_state"
+
+
+@app.get("/profile/integrations/classroom/connect")
+@login_manager.login_required
+def get_classroom_connect():
+    """Start the campus.auth connect flow for Google Classroom.
+
+    Classroom tokens are stored campus-side only; profile just walks
+    the user through Google consent (forced campus-side) and back.
+    """
+    nonce = secrets.token_urlsafe()
+    flask.session[CLASSROOM_CONNECT_STATE] = nonce
+    callback_url = campus_url.full_url_for(
+        "get_classroom_connect_callback", connect_state=nonce
+    )
+    authorize_url = integrations.connect_authorize_url(
+        client, "google.classroom", callback_url
+    )
+    return flask.redirect(authorize_url)
+
+
+@app.get("/profile/integrations/classroom/callback")
+@login_manager.login_required
+def get_classroom_connect_callback():
+    """Land back from the classroom connect flow.
+
+    campus.auth redirects to the target with its query params intact,
+    so a genuine callback echoes this session's nonce. The failure
+    paths (stale campus session, identity mismatch, consent denial)
+    error on campus.auth and never reach this callback; a missing,
+    stale or mismatching nonce is treated the same way -- not
+    connected, never as success.
+    """
+    expected = flask.session.pop(CLASSROOM_CONNECT_STATE, None)
+    received = flask.request.args.get("connect_state")
+    if (
+            not expected
+            or not received
+            or not secrets.compare_digest(
+                received.encode(), expected.encode())
+    ):
+        flask.flash(
+            "Classroom was not connected. Try Connect again; if Campus"
+            " asked you to sign in during the flow, sign in to Campus"
+            " Profile once more first.",
+            "warning",
+        )
+        return flask.redirect(flask.url_for("get_integrations_page"))
+
+    flask.flash("Classroom connected", "success")
+    return flask.redirect(flask.url_for("get_integrations_page"))
 
 
 if __name__ == '__main__':
