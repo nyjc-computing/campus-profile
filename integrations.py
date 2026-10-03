@@ -1,104 +1,158 @@
-"""Integration catalog and per-provider connection status.
+"""Integration cards from the campus.auth registry, plus per-user
+connection status and disconnect.
 
-The catalog below is a placeholder until the Campus backend tracks
-available integrations in a registry; it mirrors the OAuth proxies
-registered by campus.auth.oauth_proxy (discord, github, google), plus
-per-integration upstream connections hosted by campus.auth (campus#733).
+Cards are enumerated from the campus.auth integration registry
+(GET /integrations/v1/, public, campus#751) and status from the
+metadata-only connections inventory (GET /auth/v1/connections/,
+campus#750); see campus#733 §2.7 and campus-profile#25. The registry
+is the catalog -- this module keeps no list of integrations itself.
 """
 
 from urllib.parse import urlencode
 
 from campus_python import errors
 
-# Connection statuses shown on the integrations page.
+# Connection statuses shown on the integrations page. There is no
+# "expired": expires_at is the access token's last-known expiry, not
+# connection health -- campus refreshes silently server-side, so a
+# healthy connection usually shows a stale timestamp (#25 correction).
 STATUS_CONNECTED = "connected"
-STATUS_EXPIRED = "expired"
 STATUS_NOT_CONNECTED = "not_connected"
-STATUS_UNKNOWN = "unknown"
+STATUS_UNAVAILABLE = "unavailable"
 
 # label and Bootstrap badge classes per status.
 _STATUS_LABELS = {
     STATUS_CONNECTED: ("Connected", "bg-success"),
-    STATUS_EXPIRED: ("Expired", "bg-warning text-dark"),
     STATUS_NOT_CONNECTED: ("Not connected", "bg-secondary"),
-    STATUS_UNKNOWN: ("Unknown", "bg-danger"),
+    STATUS_UNAVAILABLE: ("Status unavailable", "bg-warning text-dark"),
 }
 
-# Placeholder registry: replace with a backend-provided registry
-# when the Campus API exposes one.
-#
-# Entries with a "connect" path segment are per-integration upstream
-# connections (campus#733 Phase 1): the segment names the campus.auth
-# route that walks the user through upstream consent and stores the
-# token campus-side. Cards with it show a Connect button; their status
-# stays "unknown" until the Phase 2 /connections/ endpoint replaces the
-# status probes below.
-PROVIDERS = {
-    "discord": {"title": "Discord", "icon": "bi-discord"},
-    "github": {"title": "GitHub", "icon": "bi-github"},
-    "google": {"title": "Google", "icon": "bi-google"},
-    "google.classroom": {
-        "title": "Google Classroom",
-        "icon": "bi-journal-bookmark",
-        "connect": "google/classroom",
-    },
+# Registry endpoint: public, sits beside /auth/v1 at the auth service
+# root, so it is not reached via auth.make_path().
+REGISTRY_PATH = "/integrations/v1/"
+
+# Bootstrap icon per card. The registry carries no icon field; this is
+# a display hint only -- never a catalog of what exists (that is the
+# registry's job), and unknown slugs get a generic plug.
+_ICONS = {
+    "classroom": "bi-journal-bookmark",
+    "calendar": "bi-calendar-event",
 }
+_DEFAULT_ICON = "bi-plug"
 
 
-def _mark(view: dict, status: str) -> dict:
-    """Stamp a status (label and badge included) onto a view dict."""
-    view["status"] = status
-    view["label"], view["badge"] = _STATUS_LABELS[status]
-    return view
+def fetch_registry(client) -> list[dict]:
+    """Fetch the integration catalog from campus.auth (public).
 
-
-def get_integration_status(client, provider_id: str, user_id: str) -> dict:
-    """Build the display state for one provider connection.
-
-    The view carries only the provider identity, its status, and its
-    catalog connect-flow pointer (if any) -- token material and
-    connection metadata (scopes, timestamps) are server-managed and
-    must never reach the template.
+    Campus JSON responses are always objects: the entries ride an
+    {"integrations": [...]} envelope (campus#751), never a bare list.
     """
-    meta = PROVIDERS[provider_id]
-    view = {
-        "id": provider_id,
-        "title": meta["title"],
-        "icon": meta["icon"],
-        "connect": meta.get("connect"),
-        "status": STATUS_UNKNOWN,
+    response = client.auth.client.get(REGISTRY_PATH)
+    response.raise_for_status()
+    return response.json()["integrations"]
+
+
+def fetch_connections(client, user_id: str) -> list[dict]:
+    """Fetch a user's upstream connection inventory (metadata-only).
+
+    Delegated read: the page's server-mode basic auth plus user_id
+    (required -- campus answers 400 without it, meaning the parameter
+    was dropped, not that the user has no connections). No token
+    values are ever present in the payload (invariant C2), and the
+    user's campus login tokens are not connections and are not listed.
+    """
+    response = client.auth.client.get(
+        client.auth.make_path("connections/"),
+        query={"user_id": user_id},
+    )
+    response.raise_for_status()
+    return response.json()["connections"]
+
+
+def registry_entry(registry: list[dict], slug: str) -> dict:
+    """Return the registry entry for a slug; LookupError if unknown."""
+    for entry in registry:
+        if entry["slug"] == slug:
+            return entry
+    raise LookupError(slug)
+
+
+def find_connection(connections: list[dict], entry: dict) -> dict | None:
+    """Return the connection matching a registry entry, if granted."""
+    for connection in connections:
+        if (connection.get("integration") == entry["slug"]
+                or connection.get("provider") == entry["provider"]):
+            return connection
+    return None
+
+
+def _mark(card: dict, status: str) -> dict:
+    """Stamp a status (label and badge included) onto a card."""
+    card["status"] = status
+    card["label"], card["badge"] = _STATUS_LABELS[status]
+    return card
+
+
+def build_card(entry: dict, connection: dict | None) -> dict:
+    """Build the display state for one registry entry.
+
+    A present connection means Connected; absence means Not connected
+    (#25 correction -- see the status note above). The card carries
+    only registry fields and the status: connection metadata (scopes,
+    timestamps) is server-managed and must never reach the template.
+    """
+    status = STATUS_CONNECTED if connection else STATUS_NOT_CONNECTED
+    card = {
+        "id": entry["slug"],
+        "title": entry["title"],
+        "description": entry.get("description"),
+        "icon": _ICONS.get(entry["slug"], _DEFAULT_ICON),
+        "connectable": bool(entry.get("connectable")),
+        "status": None,
         "label": None,
         "badge": None,
     }
-
-    try:
-        creds = client.auth.credentials[provider_id][user_id].get()
-    except errors.NotFoundError:
-        return _mark(view, STATUS_NOT_CONNECTED)
-    except (errors.APIError, TypeError, KeyError):
-        # TypeError/KeyError: campus-suite builds older than ff98c44 fail
-        # to rehydrate the embedded token (Model.from_resource). Show the
-        # provider as unknown rather than crashing the page.
-        return _mark(view, STATUS_UNKNOWN)
-
-    token = getattr(creds, "token", None)
-    if token is None:
-        return _mark(view, STATUS_UNKNOWN)
-    if token.is_expired():
-        return _mark(view, STATUS_EXPIRED)
-    return _mark(view, STATUS_CONNECTED)
+    return _mark(card, status)
 
 
-def connect_authorize_url(client, provider_id: str, target: str) -> str:
+def mark_unavailable(card: dict) -> dict:
+    """Stamp a failed status read onto a card (campus unreachable)."""
+    return _mark(card, STATUS_UNAVAILABLE)
+
+
+def connect_authorize_url(client, slug: str, target: str) -> str:
     """Build the campus.auth URL that starts a connect flow (#733).
 
+    The authorize path comes from the registry entry, not hardcode.
     target is this app's connect callback URL; campus.auth checks its
     origin against the integration's vault CONNECT_TARGETS allowlist
     before starting the flow, so a misconfigured deployment fails
     there, not here.
     """
-    meta = PROVIDERS[provider_id]
-    endpoint = client.auth.base_url + client.auth.make_path(
-        f"{meta['connect']}/authorize"
-    )
+    entry = registry_entry(fetch_registry(client), slug)
+    endpoint = client.auth.base_url + entry["authorize_path"]
     return f"{endpoint}?{urlencode({'target': target})}"
+
+
+def disconnect(client, entry: dict, user_id: str) -> bool:
+    """Disconnect a user's integration grant.
+
+    campus.auth deletes the stored credential rows and their token
+    records and emits the campus.integrations.disconnect audit
+    event campus-side; profile adds nothing to the audit trail and
+    never touches token material. 404 (nothing was connected) is
+    idempotent success, not an error.
+
+    Returns True if a connection was deleted, False if there was
+    none; raises only on real failures.
+    """
+    path = f"connections/{entry['base_provider']}/{entry['slug']}/"
+    # The client's delete() carries no query= parameter, and campus
+    # reads user_id from the query string only.
+    path = f"{path}?{urlencode({'user_id': user_id})}"
+    response = client.auth.client.delete(client.auth.make_path(path))
+    try:
+        response.raise_for_status()
+    except errors.NotFoundError:
+        return False
+    return True

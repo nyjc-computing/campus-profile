@@ -2,7 +2,7 @@
 import os
 import unittest
 from types import SimpleNamespace
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 # Default to CI's dummy values so the suite runs without local setup.
 for _var, _value in (
@@ -14,66 +14,120 @@ for _var, _value in (
 
 from campus_python import errors
 
+USER_ID = "student@nyjc.edu.sg"
 
-class _FakeToken:
-    """Minimal stand-in for campus.model.OAuthToken."""
+# Live-verified registry shape (campus dev, 2026-10-03): an envelope
+# object, never a bare array, with calendar as a listed-but-not-
+# connectable stub.
+REGISTRY_BODY = {
+    "integrations": [
+        {
+            "provider": "google.classroom",
+            "slug": "classroom",
+            "base_provider": "google",
+            "title": "Google Classroom",
+            "description": (
+                "Connect Google Classroom to your Campus account so "
+                "Campus apps can read your courses and coursework."
+            ),
+            "scopes": [
+                "https://www.googleapis.com/auth/classroom.courses.readonly",
+            ],
+            "connectable": True,
+            "authorize_path": "/auth/v1/google/classroom/authorize",
+        },
+        {
+            "provider": "google.calendar",
+            "slug": "calendar",
+            "base_provider": "google",
+            "title": "Google Calendar",
+            "description": (
+                "Connect Google Calendar to your Campus account "
+                "(coming soon)."
+            ),
+            "scopes": [],
+            "connectable": False,
+            "authorize_path": "/auth/v1/google/calendar/authorize",
+        },
+    ]
+}
 
-    def __init__(self, expired=False, scopes=None):
-        self._expired = expired
-        self.scopes = scopes if scopes is not None else ["read:user"]
-        self.expires_at = "2099-01-01T00:00:00Z"
+# Live-verified connection payloads (metadata by contract — no token
+# values). expires_at is deliberately stale: campus refreshes silently
+# server-side, so a healthy connection usually shows a past timestamp.
+CLASSROOM_CONNECTION = {
+    "provider": "google.classroom",
+    "integration": "classroom",
+    "scopes": ["https://www.googleapis.com/auth/classroom.courses.readonly"],
+    "connected_at": "2026-10-03T09:00:00Z",
+    "expires_at": "2026-10-03T12:00:00Z",
+}
 
-    def is_expired(self):
-        return self._expired
-
-
-class _FakeUserCredentials:
-    """Minimal stand-in for campus.model.UserCredentials."""
-
-    def __init__(self, token=None, created_at="2026-01-01T00:00:00Z"):
-        self.token = token
-        self.created_at = created_at
-
-
-class _FakeCredentialEntry:
-    """Returns canned credentials or raises, like the credentials API."""
-
-    def __init__(self, creds=None, error=None):
-        self._creds = creds
-        self._error = error
-
-    def get(self):
-        if self._error is not None:
-            raise self._error
-        return self._creds
+# Login via Google shows up as an identity connection, not an
+# integration grant.
+GOOGLE_IDENTITY_CONNECTION = {
+    "provider": "google",
+    "integration": None,
+    "scopes": ["email", "profile"],
+    "connected_at": "2026-10-03T09:00:00Z",
+    "expires_at": "2026-10-03T12:00:00Z",
+}
 
 
-class _FakeCredentialsCollection:
-    """Mirrors client.auth.credentials[provider][user_id].get()."""
+class _FakeResponse:
+    """Minimal stand-in for the client library's JsonResponse."""
 
-    def __init__(self, entry):
-        self._entry = entry
+    def __init__(self, status_code=200, body=None):
+        self.status_code = status_code
+        self._body = body if body is not None else {}
 
-    def __getitem__(self, provider):
-        return _FakeProvider(self._entry)
+    def json(self):
+        return self._body
+
+    def raise_for_status(self):
+        if self.status_code < 400:
+            return
+        error = errors.APIError.with_status_code(self.status_code, self._body)
+        if error is not None:
+            raise error
 
 
-class _FakeProvider:
-    def __init__(self, entry):
-        self._entry = entry
+class _FakeJsonClient:
+    """Serves canned responses per (method, path), records calls."""
 
-    def __getitem__(self, user_id):
-        return self._entry
+    def __init__(self, routes=None):
+        self.routes = routes or {}
+        self.calls = []
+
+    def get(self, path, query=None):
+        self.calls.append(("GET", path, query))
+        return self.routes.get(("GET", path), _FakeResponse())
+
+    def delete(self, path, json=None):
+        self.calls.append(("DELETE", path, json))
+        return self.routes.get(("DELETE", path), _FakeResponse())
 
 
 class _FakeAuth:
-    def __init__(self, entry):
-        self.credentials = _FakeCredentialsCollection(entry)
+    """Mimics the auth root: /auth/v1 prefix + the raw JSON client."""
+
+    base_url = "https://campusauth-development.up.railway.app"
+
+    def __init__(self, json_client):
+        self.client = json_client
+
+    @staticmethod
+    def make_path(part: str) -> str:
+        return f"/auth/v1/{part.lstrip('/')}"
 
 
-class _FakeClient:
-    def __init__(self, entry):
-        self.auth = _FakeAuth(entry)
+class _FakeCampus:
+    def __init__(self, json_client):
+        self.auth = _FakeAuth(json_client)
+
+
+def _campus(routes=None) -> _FakeCampus:
+    return _FakeCampus(_FakeJsonClient(routes))
 
 
 class SmokeTest(unittest.TestCase):
@@ -103,87 +157,212 @@ class SmokeTest(unittest.TestCase):
         self.assertTrue(any(
             "/profile/integrations/classroom/callback" in rule
             for rule in rules))
+        self.assertTrue(any(
+            "/profile/integrations/<slug>/disconnect" in rule
+            for rule in rules))
 
 
-class GetIntegrationStatusTest(unittest.TestCase):
-    """Unit tests for the per-provider connection status builder."""
+class RegistryTest(unittest.TestCase):
+    """The campus.auth integration registry feed (#25, campus#751)."""
 
-    USER_ID = "student@nyjc.edu.sg"
-
-    def _status(self, creds=None, error=None):
+    def test_registry_envelope_is_unwrapped(self):
+        """GET /integrations/v1/ returns {"integrations": [...]}."""
         import integrations
-        client = _FakeClient(_FakeCredentialEntry(creds=creds, error=error))
-        return integrations.get_integration_status(client, "github", self.USER_ID)
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
+        })
+        registry = integrations.fetch_registry(client)
+        self.assertEqual(
+            [entry["slug"] for entry in registry],
+            ["classroom", "calendar"])
+        self.assertEqual(
+            client.auth.client.calls[0][1], "/integrations/v1/")
 
-    def test_not_connected(self):
-        """A missing credential row means the provider is not connected."""
+    def test_registry_bare_array_violates_the_contract(self):
+        """A bare-list body is never valid (campus objects only)."""
         import integrations
-        status = self._status(error=errors.NotFoundError("no credentials"))
-        self.assertEqual(status["status"], integrations.STATUS_NOT_CONNECTED)
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(
+                200, REGISTRY_BODY["integrations"]),
+        })
+        with self.assertRaises((TypeError, KeyError)):
+            integrations.fetch_registry(client)
 
-    def test_connected_with_valid_token(self):
-        """A live token means the integration is active."""
+    def test_registry_outage_propagates(self):
+        """Registry failures propagate; the page decides degradation."""
         import integrations
-        creds = _FakeUserCredentials(token=_FakeToken(expired=False))
-        status = self._status(creds=creds)
-        self.assertEqual(status["status"], integrations.STATUS_CONNECTED)
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(
+                503, {"error": {"code": "UNAVAILABLE"}}),
+        })
+        with self.assertRaises(errors.APIError):
+            integrations.fetch_registry(client)
 
-    def test_expired_token(self):
-        """An expired token is surfaced distinctly from a live one."""
+
+class ConnectionsTest(unittest.TestCase):
+    """The delegated connections read (#25, campus#750)."""
+
+    def test_read_names_the_user_via_query_param(self):
+        """Basic auth carries no user: user_id rides the query string."""
         import integrations
-        creds = _FakeUserCredentials(token=_FakeToken(expired=True))
-        status = self._status(creds=creds)
-        self.assertEqual(status["status"], integrations.STATUS_EXPIRED)
+        client = _campus({
+            ("GET", "/auth/v1/connections/"): _FakeResponse(
+                200, {"connections": [CLASSROOM_CONNECTION]}),
+        })
+        connections = integrations.fetch_connections(client, USER_ID)
+        self.assertEqual(connections, [CLASSROOM_CONNECTION])
+        method, path, query = client.auth.client.calls[0]
+        self.assertEqual((method, path), ("GET", "/auth/v1/connections/"))
+        self.assertEqual(query, {"user_id": USER_ID})
 
-    def test_parse_failure_reports_unknown(self):
-        """Token rehydration failures degrade to unknown, not a 500."""
+    def test_read_envelope_is_unwrapped(self):
+        """{"connections": [...]} — absent user is an empty list."""
         import integrations
-        # campus-suite builds older than ff98c44 raise TypeError/KeyError
-        # while rehydrating the embedded token.
-        for error in (TypeError("bad token"), KeyError("token")):
-            with self.subTest(error=type(error).__name__):
-                status = self._status(error=error)
-                self.assertEqual(status["status"], integrations.STATUS_UNKNOWN)
+        client = _campus({
+            ("GET", "/auth/v1/connections/"): _FakeResponse(
+                200, {"connections": []}),
+        })
+        self.assertEqual(integrations.fetch_connections(client, USER_ID), [])
 
-    def test_api_error_reports_unknown(self):
-        """Backend errors degrade to unknown, not a 500."""
+    def test_read_failure_propagates(self):
+        """A failed read propagates; the page marks cards unavailable."""
         import integrations
-        status = self._status(error=errors.APIError(error_description="boom"))
-        self.assertEqual(status["status"], integrations.STATUS_UNKNOWN)
+        client = _campus({
+            ("GET", "/auth/v1/connections/"): _FakeResponse(
+                503, {"error": {"code": "UNAVAILABLE"}}),
+        })
+        with self.assertRaises(errors.APIError):
+            integrations.fetch_connections(client, USER_ID)
 
-    def test_status_never_contains_token_material(self):
-        """The view must not carry tokens or server-managed metadata."""
-        creds = _FakeUserCredentials(token=_FakeToken())
-        status = self._status(creds=creds)
-        for key in ("token", "access_token", "expires_at", "connected_at",
-                    "scopes", "refresh_token", "client_id"):
-            self.assertNotIn(key, status)
 
-    def test_connect_pointer_passes_through(self):
-        """Cards expose the catalog's connect-flow pointer, others None."""
+class BuildCardTest(unittest.TestCase):
+    """Mapping connections inventory onto registry entries (#25)."""
+
+    def _card(self, connections, entry_slug="classroom"):
         import integrations
-        creds = _FakeUserCredentials(token=_FakeToken())
-        classroom = integrations.get_integration_status(
-            _FakeClient(_FakeCredentialEntry(creds=creds)),
-            "google.classroom", self.USER_ID)
-        self.assertEqual(classroom["connect"], "google/classroom")
-        github = integrations.get_integration_status(
-            _FakeClient(_FakeCredentialEntry(creds=creds)),
-            "github", self.USER_ID)
-        self.assertIsNone(github["connect"])
+        entry = integrations.registry_entry(
+            REGISTRY_BODY["integrations"], entry_slug)
+        return integrations.build_card(
+            entry, integrations.find_connection(connections, entry))
 
-    def test_classroom_status_probe_degrades_to_unknown(self):
-        """A denied classroom status probe shows Unknown, not a 500."""
+    def test_absent_connection_means_not_connected(self):
+        """No matching connection entry renders Not connected."""
         import integrations
-        # Profile has no upstream_scopes for google.classroom, so the
-        # status probe is refused campus-side until Phase 2.
-        status = self._status(error=errors.AccessDeniedError(
-            error_description="no upstream_scopes for client"))
-        self.assertEqual(status["status"], integrations.STATUS_UNKNOWN)
+        card = self._card([])
+        self.assertEqual(card["status"], integrations.STATUS_NOT_CONNECTED)
+        self.assertEqual(card["label"], "Not connected")
+
+    def test_present_connection_means_connected(self):
+        """Presence of the grant is Connected — even with a stale
+        expires_at (campus refreshes silently server-side)."""
+        import integrations
+        card = self._card([CLASSROOM_CONNECTION])
+        self.assertEqual(card["status"], integrations.STATUS_CONNECTED)
+        self.assertEqual(card["label"], "Connected")
+
+    def test_identity_connection_is_not_an_integration_grant(self):
+        """Google login (integration: null) never connects Classroom."""
+        import integrations
+        card = self._card([GOOGLE_IDENTITY_CONNECTION])
+        self.assertEqual(card["status"], integrations.STATUS_NOT_CONNECTED)
+
+    def test_other_integration_grants_do_not_bleed_over(self):
+        """A calendar grant must not light up the classroom card."""
+        import integrations
+        calendar_grant = dict(CLASSROOM_CONNECTION,
+                              provider="google.calendar",
+                              integration="calendar")
+        card = self._card([calendar_grant])
+        self.assertEqual(card["status"], integrations.STATUS_NOT_CONNECTED)
+
+    def test_card_is_metadata_free(self):
+        """Connection metadata is server-managed, never template-bound."""
+        card = self._card([CLASSROOM_CONNECTION])
+        for key in ("scopes", "connected_at", "expires_at",
+                    "access_token", "refresh_token", "token"):
+            self.assertNotIn(key, card)
+
+    def test_registry_fields_pass_through(self):
+        """Title/description/connectable come from the registry."""
+        card = self._card([])
+        self.assertEqual(card["id"], "classroom")
+        self.assertEqual(card["title"], "Google Classroom")
+        self.assertTrue(card["connectable"])
+        self.assertIn("read your courses", card["description"])
+
+    def test_stub_is_not_connectable(self):
+        """The calendar stub renders but offers no connect flow."""
+        import integrations
+        card = self._card([], entry_slug="calendar")
+        self.assertFalse(card["connectable"])
+        self.assertEqual(card["status"], integrations.STATUS_NOT_CONNECTED)
+
+    def test_unknown_slug_gets_a_generic_icon(self):
+        """Icons are display hints; unknown slugs degrade to a plug."""
+        import integrations
+        entry = dict(REGISTRY_BODY["integrations"][0], slug="whiteboards")
+        card = integrations.build_card(entry, None)
+        self.assertEqual(card["icon"], "bi-plug")
+
+    def test_unavailable_marks_the_card(self):
+        """A failed status read stamps every card unavailable."""
+        import integrations
+        card = integrations.mark_unavailable(self._card([]))
+        self.assertEqual(card["status"], integrations.STATUS_UNAVAILABLE)
+        self.assertEqual(card["label"], "Status unavailable")
 
 
-class ConnectFlowTest(unittest.TestCase):
-    """The campus.auth classroom connect flow (profile#23)."""
+class DisconnectUnitTest(unittest.TestCase):
+    """integrations.disconnect against the campus.auth primitive."""
+
+    def _disconnect(self, status):
+        import integrations
+        entry = integrations.registry_entry(
+            REGISTRY_BODY["integrations"], "classroom")
+        client = _campus({
+            ("DELETE", "/auth/v1/connections/google/classroom/"
+                       f"?{urlencode({'user_id': USER_ID})}"):
+                _FakeResponse(status, {}),
+        })
+        result = integrations.disconnect(client, entry, USER_ID)
+        return result, client
+
+    def test_delete_hits_the_integration_route(self):
+        """Two-segment form: /connections/google/classroom/?user_id=…."""
+        _, client = self._disconnect(200)
+        method, path, _ = client.auth.client.calls[0]
+        self.assertEqual(method, "DELETE")
+        self.assertTrue(path.startswith(
+            "/auth/v1/connections/google/classroom/?"), path)
+        self.assertIn(
+            urlencode({"user_id": USER_ID}), path)
+
+    def test_200_means_disconnected(self):
+        """200 {} deletes the stored grant."""
+        result, _ = self._disconnect(200)
+        self.assertTrue(result)
+
+    def test_404_is_idempotent_success(self):
+        """404: nothing was connected — not an error."""
+        result, _ = self._disconnect(404)
+        self.assertFalse(result)
+
+    def test_real_failures_raise(self):
+        """A campus outage is not silently swallowed."""
+        import integrations
+        entry = integrations.registry_entry(
+            REGISTRY_BODY["integrations"], "classroom")
+        client = _campus({
+            ("DELETE", f"/auth/v1/connections/google/classroom/"
+                       f"?{urlencode({'user_id': USER_ID})}"):
+                _FakeResponse(503, {"error": {"code": "UNAVAILABLE"}}),
+        })
+        with self.assertRaises(errors.APIError):
+            integrations.disconnect(client, entry, USER_ID)
+
+
+class _SignedInTest(unittest.TestCase):
+    """Base for view-level tests that need a signed-in g.user."""
 
     def setUp(self):
         import flask
@@ -194,16 +373,174 @@ class ConnectFlowTest(unittest.TestCase):
         self.flask = flask
         self.main = main
 
-    def _signed_in(self, path: str):
+    def _signed_in(self, path: str, user_id: str = USER_ID):
         """Push a request context whose g.user passes login_required."""
         ctx = self.main.app.test_request_context(path)
         ctx.push()
-        self.flask.g.user = SimpleNamespace(id="student@nyjc.edu.sg")
+        self.flask.g.user = SimpleNamespace(id=user_id)
         self.addCleanup(ctx.pop)
         return ctx
 
+    def _patch_client(self, client):
+        """Swap main.client for a fake; restore the real one after."""
+        import main
+        original = main.client
+        main.client = client
+        self.addCleanup(setattr, main, "client", original)
+        return client
+
+
+class IntegrationsPageTest(_SignedInTest):
+    """The /profile/integrations page against faked campus.auth."""
+
+    def _routes(self, connections_body=None, registry_status=200,
+                connections_status=200):
+        routes = {
+            ("GET", "/integrations/v1/"): _FakeResponse(
+                registry_status, REGISTRY_BODY),
+        }
+        if connections_body is not None or connections_status != 200:
+            routes[("GET", "/auth/v1/connections/")] = _FakeResponse(
+                connections_status, connections_body or {})
+        return routes
+
+    def test_cards_come_from_the_registry(self):
+        """Both registry entries render; the stub has no Connect."""
+        self._signed_in("/profile/integrations")
+        self._patch_client(_campus(
+            self._routes({"connections": []})))
+        html = self.main.get_integrations_page()
+
+        self.assertIn("Google Classroom", html)
+        self.assertIn("Google Calendar", html)
+        self.assertIn("Not connected", html)
+        # Only the connectable integration gets a Connect link, and it
+        # points at the classroom connect flow (#23/#24).
+        self.assertEqual(html.count("/profile/integrations/classroom/connect"), 1)
+
+    def test_connected_user_sees_disconnect(self):
+        """A connected classroom shows Connected + a Disconnect form."""
+        self._signed_in("/profile/integrations")
+        self._patch_client(_campus(self._routes({
+            "connections": [CLASSROOM_CONNECTION]})))
+        html = self.main.get_integrations_page()
+
+        self.assertIn("Connected", html)
+        self.assertIn('action="/profile/integrations/classroom/disconnect"', html)
+        self.assertIn("confirm(", html)
+
+    def test_status_read_failure_marks_cards_unavailable(self):
+        """Campus unreachable: honest unavailability, not false
+        "Not connected"."""
+        self._signed_in("/profile/integrations")
+        self._patch_client(_campus(self._routes(
+            connections_status=503)))
+        html = self.main.get_integrations_page()
+
+        self.assertIn("Status unavailable", html)
+        self.assertNotIn("Not connected", html)
+        self.assertIn("Could not load your connection status", html)
+
+    def test_registry_failure_renders_empty_grid(self):
+        """No registry, no cards — with a warning instead of a 500."""
+        self._signed_in("/profile/integrations")
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(
+                503, {"error": {"code": "UNAVAILABLE"}}),
+        })
+        self._patch_client(client)
+        html = self.main.get_integrations_page()
+
+        self.assertNotIn("Google Classroom", html)
+        self.assertIn("Could not load the integrations catalog", html)
+
+
+class DisconnectRouteTest(_SignedInTest):
+    """POST /profile/integrations/<slug>/disconnect."""
+
+    def _post(self, delete_status=200):
+        routes = {
+            ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
+            ("DELETE", f"/auth/v1/connections/google/classroom/"
+                       f"?{urlencode({'user_id': USER_ID})}"):
+                _FakeResponse(delete_status, {}),
+        }
+        client = _campus(routes)
+        self._patch_client(client)
+        return client
+
+    def test_disconnect_flashes_and_redirects(self):
+        """A real disconnect confirms and returns to the page."""
+        self._signed_in("/profile/integrations/classroom/disconnect")
+        self._post()
+        response = self.main.post_integration_disconnect(slug="classroom")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            urlparse(response.headers["Location"]).path,
+            "/profile/integrations")
+        flashes = self.flask.get_flashed_messages(with_categories=True)
+        self.assertEqual(
+            flashes, [("success", "Google Classroom disconnected")])
+
+    def test_disconnect_404_is_a_clean_success(self):
+        """Nothing was connected: idempotent, no error (#25)."""
+        self._signed_in("/profile/integrations/classroom/disconnect")
+        self._post(delete_status=404)
+        self.main.post_integration_disconnect(slug="classroom")
+
+        flashes = self.flask.get_flashed_messages(with_categories=True)
+        self.assertEqual(
+            flashes, [("info", "Google Classroom was not connected")])
+
+    def test_disconnect_outage_warns_instead_of_500(self):
+        """A campus outage degrades to a warning flash."""
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
+            ("DELETE", f"/auth/v1/connections/google/classroom/"
+                       f"?{urlencode({'user_id': USER_ID})}"):
+                _FakeResponse(503, {"error": {"code": "UNAVAILABLE"}}),
+        })
+        self._signed_in("/profile/integrations/classroom/disconnect")
+        self._patch_client(client)
+
+        response = self.main.post_integration_disconnect(slug="classroom")
+        self.assertEqual(response.status_code, 302)
+        flashes = self.flask.get_flashed_messages(with_categories=True)
+        self.assertEqual(flashes[0][0], "warning")
+
+    def test_unknown_slug_is_404(self):
+        """Unregistry'd slugs do not reach campus.auth."""
+        from werkzeug.exceptions import NotFound
+
+        self._signed_in("/profile/integrations/nope/disconnect")
+        self._post()
+        with self.assertRaises(NotFound):
+            self.main.post_integration_disconnect(slug="nope")
+
+    def test_non_connectable_stub_is_404(self):
+        """The calendar stub manages no grants from this page."""
+        from werkzeug.exceptions import NotFound
+
+        self._signed_in("/profile/integrations/calendar/disconnect")
+        self._post()
+        with self.assertRaises(NotFound):
+            self.main.post_integration_disconnect(slug="calendar")
+
+
+class ConnectFlowTest(_SignedInTest):
+    """The campus.auth classroom connect flow (profile#23, #25 URL source)."""
+
+    def _registry_client(self):
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
+        })
+        self._patch_client(client)
+        return client
+
     def test_connect_redirects_to_campusauth_with_nonce(self):
         """Connect starts the campus.auth flow with a session-bound nonce."""
+        self._registry_client()
         self._signed_in("/profile/integrations/classroom/connect")
         response = self.main.get_classroom_connect()
 
@@ -222,8 +559,35 @@ class ConnectFlowTest(unittest.TestCase):
             nonce, self.flask.session[self.main.CLASSROOM_CONNECT_STATE])
         self.assertTrue(len(nonce) >= 32)  # token_urlsafe randomness
 
+    def test_connect_authorize_path_comes_from_the_registry(self):
+        """The authorize URL is registry-sourced, not hardcoded (#25)."""
+        client = self._registry_client()
+        self._signed_in("/profile/integrations/classroom/connect")
+        self.main.get_classroom_connect()
+
+        method, path, _ = client.auth.client.calls[0]
+        self.assertEqual((method, path), ("GET", "/integrations/v1/"))
+
+    def test_connect_registry_outage_bounces_back(self):
+        """A failed registry read cannot mint a broken authorize URL."""
+        client = _campus({
+            ("GET", "/integrations/v1/"): _FakeResponse(
+                503, {"error": {"code": "UNAVAILABLE"}}),
+        })
+        self._patch_client(client)
+        self._signed_in("/profile/integrations/classroom/connect")
+        response = self.main.get_classroom_connect()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            urlparse(response.headers["Location"]).path,
+            "/profile/integrations")
+        flashes = self.flask.get_flashed_messages(with_categories=True)
+        self.assertEqual(flashes[0][0], "warning")
+
     def test_connect_replaces_stale_nonce(self):
         """A fresh Connect overwrites any stale nonce from an abandoned flow."""
+        self._registry_client()
         self._signed_in("/profile/integrations/classroom/connect")
         self.flask.session[self.main.CLASSROOM_CONNECT_STATE] = "stale"
         self.main.get_classroom_connect()
@@ -308,6 +672,19 @@ class RouteSmokeTest(unittest.TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 302)
                 self.assertIn("/login", response.headers["Location"])
+
+    def test_disconnect_requires_signin(self):
+        """The disconnect route is login-protected (and POST-only)."""
+        response = self.client.post(
+            "/profile/integrations/classroom/disconnect")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.headers["Location"])
+
+    def test_disconnect_rejects_get(self):
+        """Disconnect is POST-only: no link prefetching deletes grants."""
+        response = self.client.get(
+            "/profile/integrations/classroom/disconnect")
+        self.assertEqual(response.status_code, 405)
 
 
 if __name__ == "__main__":

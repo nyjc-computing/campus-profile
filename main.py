@@ -7,7 +7,7 @@ import flask
 from campus import flask_campus
 from campus.common.utils import url as campus_url
 from campus.model import User
-from campus_python import Campus
+from campus_python import Campus, errors
 
 import integrations
 
@@ -64,23 +64,85 @@ def get_integrations_page():
     """Integrations page. Requires the user to be logged in already."""
     user: User = flask.g.user
 
-    connections = [
-        integrations.get_integration_status(client, provider_id, user.id)
-        for provider_id in integrations.PROVIDERS
-    ]
-
-    unknown = [
-        connection["title"]
-        for connection in connections
-        if connection["status"] == integrations.STATUS_UNKNOWN
-    ]
-    if unknown:
+    try:
+        registry = integrations.fetch_registry(client)
+    except errors.APIError:
+        # Without the registry there is nothing to render; the warning
+        # beats a 500 for a transient campus outage.
         flask.flash(
-            "Could not determine the status of: " + ", ".join(unknown),
+            "Could not load the integrations catalog from Campus."
+            " Try again in a moment.",
+            "warning",
+        )
+        return flask.render_template("integrations.html", connections=[])
+
+    try:
+        connections = integrations.fetch_connections(client, user.id)
+    except errors.APIError:
+        # Degrade to "Status unavailable" rather than showing healthy
+        # connections as "Not connected" while campus is unreachable.
+        connections = None
+        flask.flash(
+            "Could not load your connection status from Campus."
+            " Try again in a moment.",
             "warning",
         )
 
-    return flask.render_template("integrations.html", connections=connections)
+    cards = [
+        integrations.build_card(
+            entry,
+            integrations.find_connection(connections or [], entry),
+        )
+        for entry in registry
+    ]
+    if connections is None:
+        cards = [integrations.mark_unavailable(card) for card in cards]
+
+    return flask.render_template("integrations.html", connections=cards)
+
+
+@app.post("/profile/integrations/<slug>/disconnect")
+@login_manager.login_required
+def post_integration_disconnect(slug: str):
+    """Disconnect an integration grant.
+
+    campus.auth deletes the stored credential and token records and
+    emits its own audit event; profile adds nothing. 404 (nothing was
+    connected) is idempotent success, not an error (#25).
+    """
+    user: User = flask.g.user
+
+    try:
+        entry = integrations.registry_entry(
+            integrations.fetch_registry(client), slug)
+    except LookupError:
+        flask.abort(404)
+    except errors.APIError:
+        flask.flash(
+            "Could not reach Campus. Try again in a moment.",
+            "warning",
+        )
+        return flask.redirect(flask.url_for("get_integrations_page"))
+
+    if not entry.get("connectable"):
+        # Only connectable integrations manage user grants here.
+        flask.abort(404)
+
+    try:
+        disconnected = integrations.disconnect(client, entry, user.id)
+    except errors.APIError:
+        flask.flash(
+            f"Could not disconnect {entry['title']}."
+            " Try again in a moment.",
+            "warning",
+        )
+        return flask.redirect(flask.url_for("get_integrations_page"))
+
+    if disconnected:
+        flask.flash(f"{entry['title']} disconnected", "success")
+    else:
+        flask.flash(f"{entry['title']} was not connected", "info")
+    return flask.redirect(flask.url_for("get_integrations_page"))
 
 
 # Single-use nonce for the classroom connect flow: it rides to
@@ -97,15 +159,24 @@ def get_classroom_connect():
 
     Classroom tokens are stored campus-side only; profile just walks
     the user through Google consent (forced campus-side) and back.
+    The authorize path comes from the integration registry (#25).
     """
     nonce = secrets.token_urlsafe()
     flask.session[CLASSROOM_CONNECT_STATE] = nonce
     callback_url = campus_url.full_url_for(
         "get_classroom_connect_callback", connect_state=nonce
     )
-    authorize_url = integrations.connect_authorize_url(
-        client, "google.classroom", callback_url
-    )
+    try:
+        authorize_url = integrations.connect_authorize_url(
+            client, "classroom", callback_url
+        )
+    except errors.APIError:
+        flask.flash(
+            "Could not start the Classroom connect flow."
+            " Try again in a moment.",
+            "warning",
+        )
+        return flask.redirect(flask.url_for("get_integrations_page"))
     return flask.redirect(authorize_url)
 
 
