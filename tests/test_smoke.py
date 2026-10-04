@@ -14,7 +14,9 @@ for _var, _value in (
 
 from campus.model import Integration
 from campus_python import errors
+from campus_python.auth.v1.connections import Connections
 from campus_python.integrations.v1 import IntegrationsRoot
+from campus_python.interface import ResourceRoot
 
 USER_ID = "student@nyjc.edu.sg"
 
@@ -97,8 +99,10 @@ class _FakeResponse:
 class _FakeJsonClient:
     """Serves canned responses per (method, path), records calls."""
 
-    def __init__(self, routes=None):
+    def __init__(self, routes=None,
+                 base_url="https://campusauth-development.up.railway.app"):
         self.routes = routes or {}
+        self.base_url = base_url
         self.calls = []
 
     def get(self, path, query=None):
@@ -110,17 +114,21 @@ class _FakeJsonClient:
         return self.routes.get(("DELETE", path), _FakeResponse())
 
 
-class _FakeAuth:
-    """Mimics the auth root: /auth/v1 prefix + the raw JSON client."""
+class _FakeAuth(ResourceRoot):
+    """The real auth root shape (/auth/v1 over the JSON client), so the
+    app delegates to the library's connections resource like production."""
 
-    base_url = "https://campusauth-development.up.railway.app"
+    url_prefix = "/auth/v1"
 
     def __init__(self, json_client):
-        self.client = json_client
+        super().__init__(json_client=json_client)
+        self._connections = None
 
-    @staticmethod
-    def make_path(part: str) -> str:
-        return f"/auth/v1/{part.lstrip('/')}"
+    @property
+    def connections(self) -> Connections:
+        if self._connections is None:
+            self._connections = Connections(root=self)
+        return self._connections
 
 
 class _FakeCampus:
