@@ -12,7 +12,9 @@ for _var, _value in (
 ):
     os.environ.setdefault(_var, _value)
 
+from campus.model import Integration
 from campus_python import errors
+from campus_python.integrations.v1 import IntegrationsRoot
 
 USER_ID = "student@nyjc.edu.sg"
 
@@ -124,6 +126,17 @@ class _FakeAuth:
 class _FakeCampus:
     def __init__(self, json_client):
         self.auth = _FakeAuth(json_client)
+        # The registry resource is mounted campus-wide (api#84) and
+        # shares the auth service's JSON client.
+        self.integrations = IntegrationsRoot(json_client=json_client)
+
+
+def _registry_models() -> list[Integration]:
+    """Registry fixtures as the client library returns them."""
+    return [
+        Integration.from_resource(entry)
+        for entry in REGISTRY_BODY["integrations"]
+    ]
 
 
 def _campus(routes=None) -> _FakeCampus:
@@ -163,30 +176,22 @@ class SmokeTest(unittest.TestCase):
 
 
 class RegistryTest(unittest.TestCase):
-    """The campus.auth integration registry feed (#25, campus#751)."""
+    """The campus.auth integration registry feed (#25, #20)."""
 
-    def test_registry_envelope_is_unwrapped(self):
-        """GET /integrations/v1/ returns {"integrations": [...]}."""
+    def test_fetch_registry_delegates_to_the_client_resource(self):
+        """fetch_registry returns Integration models, via /integrations/v1/."""
         import integrations
         client = _campus({
             ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
         })
         registry = integrations.fetch_registry(client)
         self.assertEqual(
-            [entry["slug"] for entry in registry],
+            [entry.slug for entry in registry],
             ["classroom", "calendar"])
+        for entry in registry:
+            self.assertIsInstance(entry, Integration)
         self.assertEqual(
             client.auth.client.calls[0][1], "/integrations/v1/")
-
-    def test_registry_bare_array_violates_the_contract(self):
-        """A bare-list body is never valid (campus objects only)."""
-        import integrations
-        client = _campus({
-            ("GET", "/integrations/v1/"): _FakeResponse(
-                200, REGISTRY_BODY["integrations"]),
-        })
-        with self.assertRaises((TypeError, KeyError)):
-            integrations.fetch_registry(client)
 
     def test_registry_outage_propagates(self):
         """Registry failures propagate; the page decides degradation."""
@@ -241,7 +246,7 @@ class BuildCardTest(unittest.TestCase):
     def _card(self, connections, entry_slug="classroom"):
         import integrations
         entry = integrations.registry_entry(
-            REGISTRY_BODY["integrations"], entry_slug)
+            _registry_models(), entry_slug)
         return integrations.build_card(
             entry, integrations.find_connection(connections, entry))
 
@@ -300,7 +305,8 @@ class BuildCardTest(unittest.TestCase):
     def test_unknown_slug_gets_a_generic_icon(self):
         """Icons are display hints; unknown slugs degrade to a plug."""
         import integrations
-        entry = dict(REGISTRY_BODY["integrations"][0], slug="whiteboards")
+        entry = Integration.from_resource(
+            dict(REGISTRY_BODY["integrations"][0], slug="whiteboards"))
         card = integrations.build_card(entry, None)
         self.assertEqual(card["icon"], "bi-plug")
 
@@ -318,7 +324,7 @@ class DisconnectUnitTest(unittest.TestCase):
     def _disconnect(self, status):
         import integrations
         entry = integrations.registry_entry(
-            REGISTRY_BODY["integrations"], "classroom")
+            _registry_models(), "classroom")
         client = _campus({
             ("DELETE", "/auth/v1/connections/google/classroom/"):
                 _FakeResponse(status, {}),
@@ -349,7 +355,7 @@ class DisconnectUnitTest(unittest.TestCase):
         """A campus outage is not silently swallowed."""
         import integrations
         entry = integrations.registry_entry(
-            REGISTRY_BODY["integrations"], "classroom")
+            _registry_models(), "classroom")
         client = _campus({
             ("DELETE", "/auth/v1/connections/google/classroom/"):
                 _FakeResponse(503, {"error": {"code": "UNAVAILABLE"}}),

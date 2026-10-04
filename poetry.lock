@@ -147,7 +147,7 @@ flask = "^3.0.0"
 type = "git"
 url = "https://github.com/nyjc-computing/campus-api-python.git"
 reference = "main"
-resolved_reference = "39a6285b2cb2808df87be55728786169f4932468"
+resolved_reference = "9563443dddb05209f1bee534e8841a7184801786"
 
 [[package]]
 name = "campus-suite"
@@ -174,7 +174,7 @@ werkzeug = "^3.0.0"
 type = "git"
 url = "https://github.com/nyjc-computing/campus.git"
 reference = "weekly"
-resolved_reference = "74738e154388ee108f4351a4907b7976e372d0d3"
+resolved_reference = "518a9fa92bec5c173d5b709a577ad34733ff4237"
 
 [[package]]
 name = "certifi"

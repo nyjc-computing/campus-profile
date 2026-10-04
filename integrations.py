@@ -1,15 +1,17 @@
 """Integration cards from the campus.auth registry, plus per-user
 connection status and disconnect.
 
-Cards are enumerated from the campus.auth integration registry
-(GET /integrations/v1/, public, campus#751) and status from the
-metadata-only connections inventory (GET /auth/v1/connections/,
+Cards are enumerated from the campus.auth integration registry via
+the client library's registry resource (client.integrations.list(),
+api#84; GET /integrations/v1/, public, campus#751) and status from
+the metadata-only connections inventory (GET /auth/v1/connections/,
 campus#750); see campus#733 §2.7 and campus-profile#25. The registry
 is the catalog -- this module keeps no list of integrations itself.
 """
 
 from urllib.parse import urlencode
 
+from campus.model import Integration
 from campus_python import errors
 
 # Connection statuses shown on the integrations page. There is no
@@ -27,10 +29,6 @@ _STATUS_LABELS = {
     STATUS_UNAVAILABLE: ("Status unavailable", "bg-warning text-dark"),
 }
 
-# Registry endpoint: public, sits beside /auth/v1 at the auth service
-# root, so it is not reached via auth.make_path().
-REGISTRY_PATH = "/integrations/v1/"
-
 # Bootstrap icon per card. The registry carries no icon field; this is
 # a display hint only -- never a catalog of what exists (that is the
 # registry's job), and unknown slugs get a generic plug.
@@ -41,15 +39,14 @@ _ICONS = {
 _DEFAULT_ICON = "bi-plug"
 
 
-def fetch_registry(client) -> list[dict]:
+def fetch_registry(client) -> list[Integration]:
     """Fetch the integration catalog from campus.auth (public).
 
-    Campus JSON responses are always objects: the entries ride an
-    {"integrations": [...]} envelope (campus#751), never a bare list.
+    The client library owns the endpoint path and the
+    {"integrations": [...]} envelope (campus objects, never a bare
+    list) and returns registry entries as Integration models.
     """
-    response = client.auth.client.get(REGISTRY_PATH)
-    response.raise_for_status()
-    return response.json()["integrations"]
+    return client.integrations.list()
 
 
 def fetch_connections(client, user_id: str) -> list[dict]:
@@ -69,19 +66,20 @@ def fetch_connections(client, user_id: str) -> list[dict]:
     return response.json()["connections"]
 
 
-def registry_entry(registry: list[dict], slug: str) -> dict:
+def registry_entry(registry: list[Integration], slug: str) -> Integration:
     """Return the registry entry for a slug; LookupError if unknown."""
     for entry in registry:
-        if entry["slug"] == slug:
+        if entry.slug == slug:
             return entry
     raise LookupError(slug)
 
 
-def find_connection(connections: list[dict], entry: dict) -> dict | None:
+def find_connection(connections: list[dict],
+                    entry: Integration) -> dict | None:
     """Return the connection matching a registry entry, if granted."""
     for connection in connections:
-        if (connection.get("integration") == entry["slug"]
-                or connection.get("provider") == entry["provider"]):
+        if (connection.get("integration") == entry.slug
+                or connection.get("provider") == entry.provider):
             return connection
     return None
 
@@ -93,7 +91,7 @@ def _mark(card: dict, status: str) -> dict:
     return card
 
 
-def build_card(entry: dict, connection: dict | None) -> dict:
+def build_card(entry: Integration, connection: dict | None) -> dict:
     """Build the display state for one registry entry.
 
     A present connection means Connected; absence means Not connected
@@ -103,11 +101,11 @@ def build_card(entry: dict, connection: dict | None) -> dict:
     """
     status = STATUS_CONNECTED if connection else STATUS_NOT_CONNECTED
     card = {
-        "id": entry["slug"],
-        "title": entry["title"],
-        "description": entry.get("description"),
-        "icon": _ICONS.get(entry["slug"], _DEFAULT_ICON),
-        "connectable": bool(entry.get("connectable")),
+        "id": entry.slug,
+        "title": entry.title,
+        "description": entry.description,
+        "icon": _ICONS.get(entry.slug, _DEFAULT_ICON),
+        "connectable": entry.connectable,
         "status": None,
         "label": None,
         "badge": None,
@@ -130,11 +128,11 @@ def connect_authorize_url(client, slug: str, target: str) -> str:
     there, not here.
     """
     entry = registry_entry(fetch_registry(client), slug)
-    endpoint = client.auth.base_url + entry["authorize_path"]
+    endpoint = client.auth.base_url + entry.authorize_path
     return f"{endpoint}?{urlencode({'target': target})}"
 
 
-def disconnect(client, entry: dict, user_id: str) -> bool:
+def disconnect(client, entry: Integration, user_id: str) -> bool:
     """Disconnect a user's integration grant.
 
     campus.auth deletes the stored credential rows and their token
@@ -146,7 +144,7 @@ def disconnect(client, entry: dict, user_id: str) -> bool:
     Returns True if a connection was deleted, False if there was
     none; raises only on real failures.
     """
-    path = f"connections/{entry['base_provider']}/{entry['slug']}/"
+    path = f"connections/{entry.base_provider}/{entry.slug}/"
     response = client.auth.client.delete(
         client.auth.make_path(path),
         query={"user_id": user_id},

@@ -24,5 +24,5 @@ Notes for coding agents (and human contributors) working in this repo.
   servers set it; the deployed app intentionally does not.
 - Older upstream pins had two kwarg gaps that matter for direct view
   calls and non-GET query params (campus#772, campus-api-python#68).
-  This lock's pins (campus-suite 74738e1, campus-api-python 39a6285)
+  This lock's pins (campus-suite 518a9fa, campus-api-python 9563443)
   include both fixes — re-check if the lock ever moves backwards.
