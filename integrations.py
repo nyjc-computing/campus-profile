@@ -4,8 +4,9 @@ connection status and disconnect.
 Cards are enumerated from the campus.auth integration registry via
 the client library's registry resource (client.integrations.list(),
 api#84; GET /integrations/v1/, public, campus#751) and status from
-the metadata-only connections inventory (GET /auth/v1/connections/,
-campus#750); see campus#733 §2.7 and campus-profile#25. The registry
+the client library's connections resource (client.auth.connections,
+api#81; GET /auth/v1/connections/, campus#750); see campus#733 §2.7
+and campus-profile#25. The registry
 is the catalog -- this module keeps no list of integrations itself.
 """
 
@@ -58,12 +59,7 @@ def fetch_connections(client, user_id: str) -> list[dict]:
     values are ever present in the payload (invariant C2), and the
     user's campus login tokens are not connections and are not listed.
     """
-    response = client.auth.client.get(
-        client.auth.make_path("connections/"),
-        query={"user_id": user_id},
-    )
-    response.raise_for_status()
-    return response.json()["connections"]
+    return client.auth.connections.list(user_id=user_id)
 
 
 def registry_entry(registry: list[Integration], slug: str) -> Integration:
@@ -144,13 +140,10 @@ def disconnect(client, entry: Integration, user_id: str) -> bool:
     Returns True if a connection was deleted, False if there was
     none; raises only on real failures.
     """
-    path = f"connections/{entry.base_provider}/{entry.slug}/"
-    response = client.auth.client.delete(
-        client.auth.make_path(path),
-        query={"user_id": user_id},
-    )
     try:
-        response.raise_for_status()
+        client.auth.connections[entry.base_provider][entry.slug].delete(
+            user_id=user_id,
+        )
     except errors.NotFoundError:
         return False
     return True
