@@ -124,7 +124,7 @@ def post_integration_disconnect(slug: str):
         )
         return flask.redirect(flask.url_for("get_integrations_page"))
 
-    if not entry.get("connectable"):
+    if not entry.connectable:
         # Only connectable integrations manage user grants here.
         flask.abort(404)
 
@@ -132,16 +132,16 @@ def post_integration_disconnect(slug: str):
         disconnected = integrations.disconnect(client, entry, user.id)
     except errors.APIError:
         flask.flash(
-            f"Could not disconnect {entry['title']}."
+            f"Could not disconnect {entry.title}."
             " Try again in a moment.",
             "warning",
         )
         return flask.redirect(flask.url_for("get_integrations_page"))
 
     if disconnected:
-        flask.flash(f"{entry['title']} disconnected", "success")
+        flask.flash(f"{entry.title} disconnected", "success")
     else:
-        flask.flash(f"{entry['title']} was not connected", "info")
+        flask.flash(f"{entry.title} was not connected", "info")
     return flask.redirect(flask.url_for("get_integrations_page"))
 
 
