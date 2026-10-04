@@ -248,3 +248,4 @@ Thumbs.db
 
 # Playwright auth state (contains session cookies/tokens)
 .playwright_auth_state.json
+.worktrees/

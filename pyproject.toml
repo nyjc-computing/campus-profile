@@ -25,9 +25,24 @@ useLibraryCodeForTypes = true
 exclude = [".cache"]
 
 [tool.ruff]
-# https://beta.ruff.rs/docs/configuration/
-select = ['E', 'W', 'F', 'I', 'B', 'C4', 'ARG', 'SIM']
-ignore = ['W291', 'W292', 'W293']
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+# ARG omitted: unused-argument flags Campus's signature-contract pattern
+# (route handlers bound by unpack_request, interface-conform resource
+# methods) repo-wide; revisit if the routing layer changes.
+select = ['E', 'W', 'F', 'I', 'B', 'C4', 'SIM']
+# Policy (from the campus repo, 2026-09-30): ruff enforces style; humans
+# rewrite code. Autofixes are disabled repo-wide because they are
+# semantics-preserving only for common types. Use `ruff check --diff` to
+# review suggested rewrites, then apply them deliberately per site.
+fixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# test_smoke.py sets the Campus env defaults before importing
+# campus_python, which reads CLIENT_ID/CLIENT_SECRET at import time.
+"tests/test_smoke.py" = ["E402"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

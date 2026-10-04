@@ -8,6 +8,23 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      # Config lives in pyproject.toml [tool.ruff]; the repo must stay
+      # green under `ruff check .` (same policy as the campus repo).
+      - name: Run ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          version: '0.16.9'
+
   unit-tests:
     runs-on: ubuntu-latest
     strategy:
