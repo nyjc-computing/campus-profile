@@ -1,7 +1,6 @@
 """Test runner for campus-profile tests."""
-import unittest
 import sys
-
+import unittest
 
 if __name__ == "__main__":
     # Discover and run all tests in the tests directory

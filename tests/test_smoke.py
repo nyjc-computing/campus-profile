@@ -156,7 +156,7 @@ class SmokeTest(unittest.TestCase):
 
     def test_main_imports(self):
         """Verify that main.py imports without errors."""
-        import main
+        import main  # noqa: F401 -- the import itself is the assertion
 
     def test_flask_app_exists(self):
         """Verify that the Flask app is created."""
