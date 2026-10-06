@@ -5,6 +5,9 @@ import secrets
 
 import flask
 from campus import flask_campus
+from campus.audit.middleware import init_app as init_audit_tracing
+from campus.audit.middleware import init_journeys
+from campus.common import env
 from campus.common.utils import url as campus_url
 from campus.model import User
 from campus_python import Campus, errors
@@ -13,6 +16,20 @@ import integrations
 
 app = flask.Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
+
+# Trace producer (campus#816): record profile requests as audit spans,
+# with SDK calls landing as child spans. Opt-in via AUDIT_API_KEY +
+# AUDIT_TRACING_ENABLED; see campus docs/audit-tracing.md. Read once at
+# startup — flipping the flag is a redeploy.
+if env.get_flag("AUDIT_TRACING_ENABLED", False):
+    init_audit_tracing(app)
+
+# Action journeys (campus#828): one user-initiated episode — the page
+# load that began it, its XHRs and form posts, and the server-to-server
+# calls they spawn — groups as one journey in the audit UI. Navigations
+# mint; the sliding campus_action_journey cookie carries the episode;
+# SDK calls forward the journey.
+init_journeys(app)
 
 def debug():
     """Run to enable debug mode."""
