@@ -5,7 +5,9 @@ description = "Campus Profile"
 authors = ["Matthew Na <na.hou.boon.matthew_2025@nyjc.edu.sg>"]
 
 [tool.poetry.dependencies]
-python = ">=3.11.0,<3.13"
+# Security tier (3.11-3.13): officially supported and CI-required.
+# 3.14 (bugfix tier) is not yet supported here.
+python = ">=3.11.0,<3.14"
 
 # Client library dependencies (minimal for HTTP requests)
 flask = "^3.0.0"
