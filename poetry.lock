@@ -192,6 +192,24 @@ type = "url"
 url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.2.1/campus_common-0.2.1-py3-none-any.whl"
 
 [[package]]
+name = "campus-model"
+version = "0.1.0"
+description = "Campus domain models: dataclass entities under campus/model - PEP 420 namespace portion"
+optional = false
+python-versions = ">=3.11.0,<3.15"
+groups = ["main"]
+files = [
+    {file = "campus_model-0.1.0-py3-none-any.whl", hash = "sha256:f16190fd16d35197eb3d22ac2ff4f7eb16663900e7fa82c8029150a38055e229"},
+]
+
+[package.dependencies]
+campus_common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.2.1/campus_common-0.2.1-py3-none-any.whl"}
+
+[package.source]
+type = "url"
+url = "https://github.com/nyjc-computing/campus-model/releases/download/v0.1.0/campus_model-0.1.0-py3-none-any.whl"
+
+[[package]]
 name = "campus-suite"
 version = "0.1.16"
 description = "Campus Suite - Complete education management platform deployment orchestrator and client library"
@@ -206,6 +224,7 @@ bcrypt = "^5.0.0"
 boto3 = "^1.35.0"
 campus-api-python = {git = "https://github.com/nyjc-computing/campus-api-python.git", branch = "main"}
 campus-common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.2.1/campus_common-0.2.1-py3-none-any.whl"}
+campus-model = {url = "https://github.com/nyjc-computing/campus-model/releases/download/v0.1.0/campus_model-0.1.0-py3-none-any.whl"}
 flask = "^3.0.0"
 gunicorn = "^26.2.0"
 jsonschema = "^4.23.0"
@@ -218,7 +237,7 @@ werkzeug = "^3.0.0"
 type = "git"
 url = "https://github.com/nyjc-computing/campus.git"
 reference = "weekly"
-resolved_reference = "32e53b4d0aaccd46f5be254ebc60d479363e0e3b"
+resolved_reference = "e8eab29ffac46ae592f27e9b0e061ea2066f2209"
 
 [[package]]
 name = "certifi"
@@ -1198,4 +1217,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11.0,<3.14"
-content-hash = "aac0852f4b3e2807901173c32b03afddcc4a23acdf2de26a2a9258c901baa0e8"
+content-hash = "57a0e05e754f7e785d461ecafe9fbf40adbde302954f10fd4304357cb6783460"
