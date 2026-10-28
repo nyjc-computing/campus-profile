@@ -12,7 +12,7 @@ python = ">=3.11.0,<3.14"
 # Client library dependencies (minimal for HTTP requests)
 flask = "^3.0.0"
 campus-suite = {git = "https://github.com/nyjc-computing/campus.git", branch = "weekly"}
-campus-common = {git = "https://github.com/nyjc-computing/campus-common.git", branch = "main"}
+campus-common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.2.1/campus_common-0.2.1-py3-none-any.whl"}
 campus-api-python = {git = "https://github.com/nyjc-computing/campus-api-python.git", branch = "main"}
 
 # Deployment orchestration dependencies (all services) - required for deployment
