@@ -51,5 +51,8 @@ jobs:
           CLIENT_ID: test-client-id
           CLIENT_SECRET: test-client-secret
           PUBLIC_URL: http://localhost:5000
+          # Env-only URL resolution (campus-common 0.3.0): no baked-in
+          # topology; tests resolve service origins from the env.
+          BASE_URL: https://campus.test
         run: .venv/bin/python -m unittest discover tests
       
