@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Integrations — Campus Profile{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="h3 mb-3">Your integrations</h1>
+
+    {# Cards are enumerated from the campus.auth integration registry
+       (GET /integrations/v1/) -- the page renders whatever it lists,
+       gated by connectable. Profile ships one connect flow (classroom,
+       #23): a newly connectable integration needs its own flow and
+       callback before its Connect button can appear here. #}
+    <div class="integration-grid">
+        {% for connection in connections %}
+        <div class="card integration-card">
+            <div class="card-body p-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi {{ connection.icon }} fs-4"></i>
+                    <span class="text-truncate" title="{{ connection.title }}">{{ connection.title }}</span>
+                    <span class="badge {{ connection.badge }} ms-auto flex-shrink-0">{{ connection.label }}</span>
+                </div>
+                {% if connection.description %}
+                <p class="text-muted small mb-2 mt-1">{{ connection.description }}</p>
+                {% endif %}
+                {% if connection.connectable and connection.id == 'classroom' %}
+                <a class="btn btn-sm btn-outline-primary"
+                   href="{{ url_for('get_classroom_connect') }}">{% if connection.status == 'connected' %}Reconnect{% else %}Connect{% endif %}</a>
+                {% endif %}
+                {% if connection.status == 'connected' %}
+                <form method="post" class="d-inline mb-0"
+                      action="{{ url_for('post_integration_disconnect', slug=connection.id) }}"
+                      onsubmit="return confirm('Disconnect {{ connection.title }}? Campus deletes the stored grant; you can connect again later.')">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Disconnect</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

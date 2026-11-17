@@ -213,6 +213,11 @@ Thumbs.db
 # Sensitive files and directories
 .claude/
 .claude-memory/
+.zcode/
+.zcodeignore
+
+# Local-only dev/agent tooling (live E2E harness etc.; see AGENTS.md if present)
+scripts/
 *.key
 *.pem
 *.cert
@@ -243,3 +248,4 @@ Thumbs.db
 
 # Playwright auth state (contains session cookies/tokens)
 .playwright_auth_state.json
+.worktrees/

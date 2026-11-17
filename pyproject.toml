@@ -5,15 +5,20 @@ description = "Campus Profile"
 authors = ["Matthew Na <na.hou.boon.matthew_2025@nyjc.edu.sg>"]
 
 [tool.poetry.dependencies]
-python = ">=3.11.0,<3.12"
+# Security tier (3.11-3.13): officially supported and CI-required.
+# 3.14 (bugfix tier) is not yet supported here.
+python = ">=3.11.0,<3.14"
 
 # Client library dependencies (minimal for HTTP requests)
 flask = "^3.0.0"
-campus-suite = {git = "https://github.com/nyjc-computing/campus.git", branch = "weekly"}
-campus-api-python = {git = "https://github.com/nyjc-computing/campus-api-python.git", branch = "main"}
+# Flask consumer layer (flask_campus + audit middleware) - the suite is no longer a runtime dep (campus#993)
+flask-campus = {url = "https://github.com/nyjc-computing/flask-campus/releases/download/v0.1.8/flask_campus-0.1.8-py3-none-any.whl"}
+campus-common = {url = "https://github.com/nyjc-computing/campus-common/releases/download/v0.3.1/campus_common-0.3.1-py3-none-any.whl"}
+campus-model = {url = "https://github.com/nyjc-computing/campus-model/releases/download/v0.1.5/campus_model-0.1.5-py3-none-any.whl"}
+campus-api-python = {url = "https://github.com/nyjc-computing/campus-api-python/releases/download/v0.8.2/campus_api_python-0.8.2-py3-none-any.whl"}
 
 # Deployment orchestration dependencies (all services) - required for deployment
-gunicorn = "^21.2.0"
+gunicorn = "^26.2.0"
 werkzeug = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -25,9 +30,24 @@ useLibraryCodeForTypes = true
 exclude = [".cache"]
 
 [tool.ruff]
-# https://beta.ruff.rs/docs/configuration/
-select = ['E', 'W', 'F', 'I', 'B', 'C4', 'ARG', 'SIM']
-ignore = ['W291', 'W292', 'W293']
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+# ARG omitted: unused-argument flags Campus's signature-contract pattern
+# (route handlers bound by unpack_request, interface-conform resource
+# methods) repo-wide; revisit if the routing layer changes.
+select = ['E', 'W', 'F', 'I', 'B', 'C4', 'SIM']
+# Policy (from the campus repo, 2026-09-30): ruff enforces style; humans
+# rewrite code. Autofixes are disabled repo-wide because they are
+# semantics-preserving only for common types. Use `ruff check --diff` to
+# review suggested rewrites, then apply them deliberately per site.
+fixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# test_smoke.py sets the Campus env defaults before importing
+# campus_python, which reads CLIENT_ID/CLIENT_SECRET at import time.
+"tests/test_smoke.py" = ["E402"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
