@@ -5,10 +5,10 @@ import secrets
 
 import flask
 from campus import flask_campus
-from campus.audit.middleware import init_app as init_audit_tracing
-from campus.audit.middleware import init_journeys
 from campus.common import env
 from campus.common.utils import url as campus_url
+from campus.flask_campus.audit import init_journeys
+from campus.flask_campus.audit import init_tracing as init_audit_tracing
 from campus.model import User
 from campus_python import Campus, errors
 
