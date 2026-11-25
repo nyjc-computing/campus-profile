@@ -75,6 +75,22 @@ def get_profile_page():
 
     return flask.render_template('profile.html', user=user)
 
+# Session-bound CSRF token for form posts (#61): minted when the
+# integrations page renders, echoed by a hidden form field, and
+# checked on POST — a request without a matching pair was not
+# initiated by this app.
+CSRF_SESSION_KEY = "csrf_token"
+
+
+def _csrf_token() -> str:
+    """Return this session's CSRF token, minting one on first use."""
+    token = flask.session.get(CSRF_SESSION_KEY)
+    if not token:
+        token = secrets.token_urlsafe()
+        flask.session[CSRF_SESSION_KEY] = token
+    return token
+
+
 @app.get("/profile/integrations")
 @login_manager.login_required
 def get_integrations_page():
@@ -91,7 +107,8 @@ def get_integrations_page():
             " Try again in a moment.",
             "warning",
         )
-        return flask.render_template("integrations.html", connections=[])
+        return flask.render_template(
+            "integrations.html", connections=[], csrf_token=_csrf_token())
 
     try:
         connections = integrations.fetch_connections(client, user.id)
@@ -115,7 +132,8 @@ def get_integrations_page():
     if connections is None:
         cards = [integrations.mark_unavailable(card) for card in cards]
 
-    return flask.render_template("integrations.html", connections=cards)
+    return flask.render_template(
+        "integrations.html", connections=cards, csrf_token=_csrf_token())
 
 
 @app.post("/profile/integrations/<slug>/disconnect")
@@ -128,6 +146,18 @@ def post_integration_disconnect(slug: str):
     connected) is idempotent success, not an error (#25).
     """
     user: User = flask.g.user
+
+    # CSRF (#61): the form echoes a session-bound token; a request
+    # without a matching pair was not initiated by this app.
+    expected = flask.session.get(CSRF_SESSION_KEY, "")
+    received = flask.request.form.get("csrf_token", "")
+    if (
+            not expected
+            or not received
+            or not secrets.compare_digest(
+                received.encode(), expected.encode())
+    ):
+        flask.abort(400)
 
     try:
         entry = integrations.registry_entry(

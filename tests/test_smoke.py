@@ -384,9 +384,9 @@ class _SignedInTest(unittest.TestCase):
         self.flask = flask
         self.main = main
 
-    def _signed_in(self, path: str, user_id: str = USER_ID):
+    def _signed_in(self, path: str, user_id: str = USER_ID, data=None):
         """Push a request context whose g.user passes login_required."""
-        ctx = self.main.app.test_request_context(path)
+        ctx = self.main.app.test_request_context(path, data=data)
         ctx.push()
         self.flask.g.user = SimpleNamespace(id=user_id)
         self.addCleanup(ctx.pop)
@@ -444,6 +444,8 @@ class IntegrationsPageTest(_SignedInTest):
         self.assertIn("Connected", html)
         self.assertIn("Reconnect", html)
         self.assertIn('action="/profile/integrations/classroom/disconnect"', html)
+        # The disconnect form carries the session-bound CSRF token (#61).
+        self.assertIn('name="csrf_token"', html)
         self.assertIn("confirm(", html)
 
     def test_status_read_failure_marks_cards_unavailable(self):
@@ -475,7 +477,16 @@ class IntegrationsPageTest(_SignedInTest):
 class DisconnectRouteTest(_SignedInTest):
     """POST /profile/integrations/<slug>/disconnect."""
 
-    def _post(self, delete_status=200):
+    CSRF_TOKEN = "test-csrf-token"
+
+    def _sign_in_to_disconnect(self, form_token=CSRF_TOKEN):
+        """Signed-in request context carrying the form's CSRF field."""
+        data = {"csrf_token": form_token} if form_token is not None else None
+        self._signed_in(
+            "/profile/integrations/classroom/disconnect", data=data)
+
+    def _post(self, delete_status=200, session_token=CSRF_TOKEN):
+        """Fake campus routes, plus the session's minted CSRF token."""
         routes = {
             ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
             ("DELETE", "/auth/v1/connections/google/classroom/"):
@@ -483,11 +494,13 @@ class DisconnectRouteTest(_SignedInTest):
         }
         client = _campus(routes)
         self._patch_client(client)
+        if session_token is not None:
+            self.flask.session[self.main.CSRF_SESSION_KEY] = session_token
         return client
 
     def test_disconnect_flashes_and_redirects(self):
         """A real disconnect confirms and returns to the page."""
-        self._signed_in("/profile/integrations/classroom/disconnect")
+        self._sign_in_to_disconnect()
         self._post()
         response = self.main.post_integration_disconnect(slug="classroom")
 
@@ -501,7 +514,7 @@ class DisconnectRouteTest(_SignedInTest):
 
     def test_disconnect_404_is_a_clean_success(self):
         """Nothing was connected: idempotent, no error (#25)."""
-        self._signed_in("/profile/integrations/classroom/disconnect")
+        self._sign_in_to_disconnect()
         self._post(delete_status=404)
         self.main.post_integration_disconnect(slug="classroom")
 
@@ -511,13 +524,8 @@ class DisconnectRouteTest(_SignedInTest):
 
     def test_disconnect_outage_warns_instead_of_500(self):
         """A campus outage degrades to a warning flash."""
-        client = _campus({
-            ("GET", "/integrations/v1/"): _FakeResponse(200, REGISTRY_BODY),
-            ("DELETE", "/auth/v1/connections/google/classroom/"):
-                _FakeResponse(503, {"error": {"code": "UNAVAILABLE"}}),
-        })
-        self._signed_in("/profile/integrations/classroom/disconnect")
-        self._patch_client(client)
+        self._sign_in_to_disconnect()
+        self._post(delete_status=503)
 
         response = self.main.post_integration_disconnect(slug="classroom")
         self.assertEqual(response.status_code, 302)
@@ -528,7 +536,7 @@ class DisconnectRouteTest(_SignedInTest):
         """Unregistry'd slugs do not reach campus.auth."""
         from werkzeug.exceptions import NotFound
 
-        self._signed_in("/profile/integrations/nope/disconnect")
+        self._sign_in_to_disconnect()
         self._post()
         with self.assertRaises(NotFound):
             self.main.post_integration_disconnect(slug="nope")
@@ -537,10 +545,37 @@ class DisconnectRouteTest(_SignedInTest):
         """The calendar stub manages no grants from this page."""
         from werkzeug.exceptions import NotFound
 
-        self._signed_in("/profile/integrations/calendar/disconnect")
+        self._sign_in_to_disconnect()
         self._post()
         with self.assertRaises(NotFound):
             self.main.post_integration_disconnect(slug="calendar")
+
+    def test_disconnect_rejects_missing_form_token(self):
+        """A POST without the form's CSRF field is a bad request (#61)."""
+        from werkzeug.exceptions import BadRequest
+
+        self._sign_in_to_disconnect(form_token=None)
+        self._post()
+        with self.assertRaises(BadRequest):
+            self.main.post_integration_disconnect(slug="classroom")
+
+    def test_disconnect_rejects_forged_token(self):
+        """A token this flow did not mint is a bad request (#61)."""
+        from werkzeug.exceptions import BadRequest
+
+        self._sign_in_to_disconnect(form_token="forged")
+        self._post()
+        with self.assertRaises(BadRequest):
+            self.main.post_integration_disconnect(slug="classroom")
+
+    def test_disconnect_rejects_absent_session_token(self):
+        """No minted session token (page never rendered): reject (#61)."""
+        from werkzeug.exceptions import BadRequest
+
+        self._sign_in_to_disconnect()
+        self._post(session_token=None)
+        with self.assertRaises(BadRequest):
+            self.main.post_integration_disconnect(slug="classroom")
 
 
 class ConnectFlowTest(_SignedInTest):
