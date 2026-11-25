@@ -5,7 +5,7 @@ import secrets
 
 import flask
 from campus import flask_campus
-from campus.common import env
+from campus.common import env, services
 from campus.common.utils import url as campus_url
 from campus.flask_campus.audit import init_journeys
 from campus.flask_campus.audit import init_tracing as init_audit_tracing
@@ -30,6 +30,20 @@ if env.get_flag("AUDIT_TRACING_ENABLED", False):
 # mint; the sliding campus_action_journey cookie carries the episode;
 # SDK calls forward the journey.
 init_journeys(app)
+
+def _resolve_auth_url() -> str:
+    """Resolve the campus.auth origin once at boot (#59).
+
+    flask-campus re-resolves it per-request (login session check), so
+    a missing env var would otherwise surface as a 500 on every page,
+    landing included — with the truth only in the traceback. Dying
+    here reuses the SDK's own clear message instead.
+    """
+    return services.resolve_base_url("campus.auth")
+
+
+_resolve_auth_url()
+
 
 def debug():
     """Run to enable debug mode."""

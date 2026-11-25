@@ -702,5 +702,24 @@ class RouteSmokeTest(unittest.TestCase):
         self.assertEqual(response.status_code, 405)
 
 
+class StartupAuthUrlTest(unittest.TestCase):
+    """The campus.auth origin resolves at boot, not per-request (#59)."""
+
+    def test_missing_auth_url_env_raises(self):
+        """No BASE_URL/CAMPUS_* env: boot-time resolution raises."""
+        from unittest import mock
+
+        import main
+
+        with mock.patch.dict(os.environ):
+            for key in [
+                key for key in os.environ
+                if key.startswith(("BASE_URL", "CAMPUS_"))
+            ]:
+                del os.environ[key]
+            with self.assertRaises(ValueError):
+                main._resolve_auth_url()
+
+
 if __name__ == "__main__":
     unittest.main()
