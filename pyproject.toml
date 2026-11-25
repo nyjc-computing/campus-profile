@@ -48,6 +48,9 @@ fixable = []
 # test_smoke.py sets the Campus env defaults before importing
 # campus_python, which reads CLIENT_ID/CLIENT_SECRET at import time.
 "tests/test_smoke.py" = ["E402"]
+# run_preview.py sets its own env defaults for the same reason before
+# importing main and the test fixtures it stubs with.
+"tools/run_preview.py" = ["E402", "I001"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

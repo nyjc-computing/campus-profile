@@ -13,8 +13,11 @@ Notes for coding agents (and human contributors) working in this repo.
   (`--serve 8001` to browse with `?as=b`/`?user=` switching the fake user;
   `MOCK_CONNECTED=1` mocks the connections read to eyeball the
   connected-card layout).
-- **Backend-free visual preview**: `.zcode/run_preview.py` stubs the
-  Campus client entirely (demo user, canned credentials).
+- **Backend-free visual preview**: `tools/run_preview.py` (committed,
+  secret-free) stubs the Campus client entirely — demo user, canned
+  registry/connection data from the test fixtures:
+  `poetry run python tools/run_preview.py --port 5001`.
+  Don't click Log out / Sign in / Connect there; they leave the stub.
 
 ## Flask/app gotchas
 
