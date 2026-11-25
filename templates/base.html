@@ -16,10 +16,10 @@
                 {% if g.user %}
                 <div class="d-flex align-items-center gap-3">
                     <span class="text-muted small d-none d-md-inline">{{ g.user.email }}</span>
-                    <a class="btn btn-sm btn-outline-secondary" href="/logout">Log out</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('auth.logout') }}">Log out</a>
                 </div>
                 {% else %}
-                <a class="btn btn-sm btn-outline-primary" href="/login">Sign in</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('auth.login') }}">Sign in</a>
                 {% endif %}
             </div>
         </nav>
