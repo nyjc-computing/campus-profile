@@ -183,6 +183,38 @@ class SmokeTest(unittest.TestCase):
             for rule in rules))
 
 
+class BootEnvTest(unittest.TestCase):
+    """The app refuses to boot with an incomplete environment (#60)."""
+
+    def test_boot_fails_fast_without_secret_key(self):
+        """Importing main without SECRET_KEY dies with a clear error.
+
+        The failure happens at import time, so it is checked in a
+        fresh interpreter rather than this one (main is already
+        imported here).
+        """
+        import pathlib
+        import subprocess
+        import sys
+
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        env = {
+            key: value for key, value in os.environ.items()
+            if key != "SECRET_KEY"
+        }
+        env.setdefault("CLIENT_ID", "test-client-id")
+        env.setdefault("CLIENT_SECRET", "test-client-secret")
+        env.setdefault("PUBLIC_URL", "http://localhost:5000")
+        env.setdefault("BASE_URL", "https://campus.test")
+        result = subprocess.run(
+            [sys.executable, "-c", "import main"],
+            cwd=repo_root, env=env, capture_output=True, text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SECRET_KEY", result.stderr)
+
+
 class RegistryTest(unittest.TestCase):
     """The campus.auth integration registry feed (#25, #20)."""
 

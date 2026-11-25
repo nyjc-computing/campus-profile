@@ -15,7 +15,17 @@ from campus_python import Campus, errors
 import integrations
 
 app = flask.Flask(__name__)
+# Fail fast (#60): SECRET_KEY signs the session cookie (login, flash,
+# OAuth state). Unset, Flask limps along until the session is first
+# used and dies there, far from the cause.
 app.secret_key = os.environ.get("SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError(
+        "SECRET_KEY is not set: Flask sessions (login, flash) need"
+        " it. Generate one with `python -c 'import secrets;"
+        " print(secrets.token_urlsafe())'` and set it in the"
+        " environment."
+    )
 
 # Trace producer (campus#816): record profile requests as audit spans,
 # with SDK calls landing as child spans. Opt-in via AUDIT_API_KEY +
