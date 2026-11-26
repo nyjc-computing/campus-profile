@@ -170,6 +170,7 @@ class SmokeTest(unittest.TestCase):
 
         # Check for main routes
         self.assertTrue(any("/" in rule for rule in rules))
+        self.assertTrue(any("/health" in rule for rule in rules))
         self.assertTrue(any("/profile/" in rule for rule in rules))
         self.assertTrue(any("/profile/integrations" in rule for rule in rules))
         self.assertTrue(any(
@@ -755,6 +756,12 @@ class RouteSmokeTest(unittest.TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 404)
+
+    def test_health_serves_plain_ok(self):
+        """GET /health answers 200 "ok" — fleet liveness (#842)."""
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"ok")
 
 
 if __name__ == "__main__":
