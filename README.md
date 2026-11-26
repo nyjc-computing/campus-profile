@@ -30,7 +30,7 @@ and no baked-in service topology:
 |---|---|---|
 | `CLIENT_ID` / `CLIENT_SECRET` | yes | This app's OAuth client at campus.auth (server-mode credentials; fetch from the deployment platform). Read at import time. |
 | `SECRET_KEY` | yes | Signs the Flask session cookie (login, flash, CSRF). The app refuses to boot without it. |
-| `PUBLIC_URL` | yes | This app's public origin; used to build OAuth redirect/callback URLs. |
+| `PUBLIC_URL` | yes | This app's public origin; used to build OAuth redirect/callback URLs (the callback lands at `/profile/finalize_login` on this origin). |
 | `BASE_URL` or `CAMPUS_AUTH_URL` | yes | The campus.auth origin. Required even to render the landing page: flask-campus resolves it on every request. |
 | `AUDIT_API_KEY` + `AUDIT_TRACING_ENABLED` | no | Opt-in audit tracing (see the campus repo's `docs/audit-tracing.md`; flipping the flag is a redeploy). |
 
