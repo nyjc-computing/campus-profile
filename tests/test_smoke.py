@@ -181,6 +181,13 @@ class SmokeTest(unittest.TestCase):
         self.assertTrue(any(
             "/profile/integrations/<slug>/disconnect" in rule
             for rule in rules))
+        # The auth blueprint mounts namespaced under /profile (#73).
+        self.assertTrue(any(
+            rule == "/profile/login" for rule in rules))
+        self.assertTrue(any(
+            rule == "/profile/finalize_login" for rule in rules))
+        self.assertTrue(any(
+            rule == "/profile/logout" for rule in rules))
 
 
 class RegistryTest(unittest.TestCase):
@@ -709,10 +716,11 @@ class RouteSmokeTest(unittest.TestCase):
         self.assertIn(b"Sign in", response.data)
 
     def test_profile_redirects_to_login_when_signed_out(self):
-        """Signed-out users are redirected to login."""
+        """Signed-out users are redirected to the namespaced login."""
         response = self.client.get("/profile/")
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/login", response.headers["Location"])
+        self.assertEqual(
+            urlparse(response.headers["Location"]).path, "/profile/login")
 
     def test_connect_flow_routes_require_signin(self):
         """Both classroom connect routes are login-protected."""
@@ -721,20 +729,32 @@ class RouteSmokeTest(unittest.TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 302)
-                self.assertIn("/login", response.headers["Location"])
+                self.assertEqual(
+                    urlparse(response.headers["Location"]).path,
+                    "/profile/login")
 
     def test_disconnect_requires_signin(self):
         """The disconnect route is login-protected (and POST-only)."""
         response = self.client.post(
             "/profile/integrations/classroom/disconnect")
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/login", response.headers["Location"])
+        self.assertEqual(
+            urlparse(response.headers["Location"]).path, "/profile/login")
 
     def test_disconnect_rejects_get(self):
         """Disconnect is POST-only: no link prefetching deletes grants."""
         response = self.client.get(
             "/profile/integrations/classroom/disconnect")
         self.assertEqual(response.status_code, 405)
+
+    def test_root_auth_mount_is_namespaced_away(self):
+        """The shared root /login and /logout mounts are gone (#73):
+        the gateway cannot dispatch them, and profile's auth surface
+        lives at /profile."""
+        for path in ("/login", "/logout"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":

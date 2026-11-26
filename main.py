@@ -17,6 +17,13 @@ import integrations
 app = flask.Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
 
+# Fleet session cookie naming (campus docs/development-guidelines.md,
+# campus#1290): Flask's default "session" cookie would clobber every
+# other campus app's session on the shared gateway hostname (and they
+# would clobber ours). No migration — sessions are ephemeral; users
+# just re-login (#73).
+app.config["SESSION_COOKIE_NAME"] = "campus_profile_session"
+
 # Trace producer (campus#816): record profile requests as audit spans,
 # with SDK calls landing as child spans. Opt-in via AUDIT_API_KEY +
 # AUDIT_TRACING_ENABLED; see campus docs/audit-tracing.md. Read once at
@@ -43,7 +50,17 @@ login_manager = flask_campus.OAuthLoginManager(
     # Public landing page: logging out must not redirect into a
     # login-protected route, or the user is bounced straight back
     # into the OAuth flow.
-    default_endpoint="get_index_page"
+    default_endpoint="get_index_page",
+    # Namespaced login mount (flask-campus#47, #73): profile's auth
+    # surface mounts at /profile/login, /profile/finalize_login and
+    # /profile/logout, so the gateway can dispatch it under the shared
+    # hostname — the root-level /login that four consumer apps share
+    # is not dispatchable. The OAuth callback and every login_required
+    # redirect follow the prefix automatically; PUBLIC_URL stays a
+    # bare origin (callback = PUBLIC_URL + prefix). Inert at the
+    # origin domain until the registry entry (campus#1291) exists and
+    # PUBLIC_URL flips — last, per the additive-then-flip sequence.
+    login_prefix="/profile",
 )
 
 login_manager.init_app(app)
