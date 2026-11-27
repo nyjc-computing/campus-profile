@@ -76,8 +76,9 @@ Python 3.11, 3.12 and 3.13 for every push/PR to `main` and `dev`.
     campus.auth registry, with per-user connection status
   - `POST /profile/integrations/<slug>/disconnect` — disconnect a grant
     (session-bound CSRF token; 404 is idempotent success)
-  - `/profile/integrations/classroom/connect` + `/callback` — Google
-    Classroom connect flow via campus.auth, protected by a session nonce
+  - `GET /profile/integrations/<slug>/connect` + `/callback` — generic
+    connect flow via campus.auth for any integration the registry marks
+    connectable, protected by a per-slug session nonce (#70)
 - `integrations.py` — builds the integration cards and handles
   connection status/disconnect. The registry is the catalog: this app
   keeps no list of integrations and never touches token material.

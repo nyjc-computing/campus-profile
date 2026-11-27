@@ -7,9 +7,9 @@
 
     {# Cards are enumerated from the campus.auth integration registry
        (GET /integrations/v1/) -- the page renders whatever it lists,
-       gated by connectable. Profile ships one connect flow (classroom,
-       #23): a newly connectable integration needs its own flow and
-       callback before its Connect button can appear here. #}
+       gated by connectable: any integration campus.auth marks
+       connectable gets a working Connect button, no profile change
+       needed (#70). #}
     <div class="integration-grid">
         {% for connection in connections %}
         <div class="card integration-card">
@@ -22,9 +22,9 @@
                 {% if connection.description %}
                 <p class="text-muted small mb-2 mt-1">{{ connection.description }}</p>
                 {% endif %}
-                {% if connection.connectable and connection.id == 'classroom' %}
+                {% if connection.connectable %}
                 <a class="btn btn-sm btn-outline-primary"
-                   href="{{ url_for('get_classroom_connect') }}">{% if connection.status == 'connected' %}Reconnect{% else %}Connect{% endif %}</a>
+                   href="{{ url_for('get_integration_connect', slug=connection.id) }}">{% if connection.status == 'connected' %}Reconnect{% else %}Connect{% endif %}</a>
                 {% endif %}
                 {% if connection.status == 'connected' %}
                 <form method="post" class="d-inline mb-0"

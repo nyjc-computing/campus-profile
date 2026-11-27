@@ -114,16 +114,15 @@ def mark_unavailable(card: dict) -> dict:
     return _mark(card, STATUS_UNAVAILABLE)
 
 
-def connect_authorize_url(client, slug: str, target: str) -> str:
+def authorize_url(client, entry: Integration, target: str) -> str:
     """Build the campus.auth URL that starts a connect flow (#733).
 
-    The authorize path comes from the registry entry, not hardcode.
-    target is this app's connect callback URL; campus.auth checks its
-    origin against the integration's vault CONNECT_TARGETS allowlist
-    before starting the flow, so a misconfigured deployment fails
-    there, not here.
+    The authorize path comes from the passed registry entry (the
+    caller resolved the slug once, #70). target is this app's connect
+    callback URL; campus.auth checks its origin against the
+    integration's vault CONNECT_TARGETS allowlist before starting the
+    flow, so a misconfigured deployment fails there, not here.
     """
-    entry = registry_entry(fetch_registry(client), slug)
     endpoint = client.auth.base_url + entry.authorize_path
     return f"{endpoint}?{urlencode({'target': target})}"
 

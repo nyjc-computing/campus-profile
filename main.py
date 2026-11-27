@@ -9,7 +9,7 @@ from campus.common import env
 from campus.common.utils import url as campus_url
 from campus.flask_campus.audit import init_journeys
 from campus.flask_campus.audit import init_tracing as init_audit_tracing
-from campus.model import User
+from campus.model import Integration, User
 from campus_python import Campus, errors
 
 import integrations
@@ -165,6 +165,28 @@ def get_integrations_page():
         "integrations.html", connections=cards, csrf_token=_csrf_token())
 
 
+def _registry_entry(slug: str) -> Integration:
+    """Resolve a slug against the live integration registry.
+
+    Unknown slugs are 404 (nothing here manages them); a campus
+    outage raises and the caller degrades with a flash, not a 500.
+    """
+    try:
+        return integrations.registry_entry(
+            integrations.fetch_registry(client), slug)
+    except LookupError:
+        flask.abort(404)
+
+
+def _connectable_entry(slug: str) -> Integration:
+    """The registry entry for slug; 404 unless it is connectable (#70)."""
+    entry = _registry_entry(slug)
+    if not entry.connectable:
+        # Only connectable integrations manage grants here.
+        flask.abort(404)
+    return entry
+
+
 @app.post("/profile/integrations/<slug>/disconnect")
 @login_manager.login_required
 def post_integration_disconnect(slug: str):
@@ -189,20 +211,13 @@ def post_integration_disconnect(slug: str):
         flask.abort(400)
 
     try:
-        entry = integrations.registry_entry(
-            integrations.fetch_registry(client), slug)
-    except LookupError:
-        flask.abort(404)
+        entry = _connectable_entry(slug)
     except errors.APIError:
         flask.flash(
             "Could not reach Campus. Try again in a moment.",
             "warning",
         )
         return flask.redirect(flask.url_for("get_integrations_page"))
-
-    if not entry.connectable:
-        # Only connectable integrations manage user grants here.
-        flask.abort(404)
 
     try:
         disconnected = integrations.disconnect(client, entry, user.id)
@@ -221,54 +236,69 @@ def post_integration_disconnect(slug: str):
     return flask.redirect(flask.url_for("get_integrations_page"))
 
 
-# Single-use nonce for the classroom connect flow: it rides to
-# campus.auth inside the target URL and must ride back on the callback.
-# Binding it to the profile session means only a redirect this app
-# initiated can mark the integration connected.
-CLASSROOM_CONNECT_STATE = "classroom_connect_state"
+# Single-use nonce for a connect flow: it rides to campus.auth inside
+# the target URL and must ride back on the callback. Binding it to the
+# profile session, one key per slug, means only a redirect this app
+# initiated can mark that integration connected.
+def connect_state_key(slug: str) -> str:
+    return f"{slug}_connect_state"
 
 
-@app.get("/profile/integrations/classroom/connect")
+@app.get("/profile/integrations/<slug>/connect")
 @login_manager.login_required
-def get_classroom_connect():
-    """Start the campus.auth connect flow for Google Classroom.
+def get_integration_connect(slug: str):
+    """Start the campus.auth connect flow for a connectable
+    integration (#70).
 
-    Classroom tokens are stored campus-side only; profile just walks
-    the user through Google consent (forced campus-side) and back.
-    The authorize path comes from the integration registry (#25).
+    The flow is generic: the nonce handshake and the registry-sourced
+    authorize path (#25) serve any integration campus.auth marks
+    connectable, so a newly connectable one needs no profile change.
+    Its tokens are stored campus-side only; profile just walks the
+    user through provider consent (forced campus-side) and back.
     """
-    nonce = secrets.token_urlsafe()
-    flask.session[CLASSROOM_CONNECT_STATE] = nonce
-    callback_url = campus_url.full_url_for(
-        "get_classroom_connect_callback", connect_state=nonce
-    )
     try:
-        authorize_url = integrations.connect_authorize_url(
-            client, "classroom", callback_url
-        )
+        entry = _connectable_entry(slug)
     except errors.APIError:
         flask.flash(
-            "Could not start the Classroom connect flow."
-            " Try again in a moment.",
+            "Could not reach Campus. Try again in a moment.",
             "warning",
         )
         return flask.redirect(flask.url_for("get_integrations_page"))
-    return flask.redirect(authorize_url)
+
+    nonce = secrets.token_urlsafe()
+    flask.session[connect_state_key(slug)] = nonce
+    callback_url = campus_url.full_url_for(
+        "get_integration_connect_callback", slug=slug, connect_state=nonce
+    )
+    return flask.redirect(
+        integrations.authorize_url(client, entry, callback_url))
 
 
-@app.get("/profile/integrations/classroom/callback")
+@app.get("/profile/integrations/<slug>/callback")
 @login_manager.login_required
-def get_classroom_connect_callback():
-    """Land back from the classroom connect flow.
+def get_integration_connect_callback(slug: str):
+    """Land back from a connect flow (#70).
 
     campus.auth redirects to the target with its query params intact,
-    so a genuine callback echoes this session's nonce. The failure
-    paths (stale campus session, identity mismatch, consent denial)
-    error on campus.auth and never reach this callback; a missing,
-    stale or mismatching nonce is treated the same way -- not
-    connected, never as success.
+    so a genuine callback echoes this session's per-slug nonce. The
+    failure paths (stale campus session, identity mismatch, consent
+    denial) error on campus.auth and never reach this callback; a
+    missing, stale or mismatching nonce is treated the same way --
+    not connected, never as success.
     """
-    expected = flask.session.pop(CLASSROOM_CONNECT_STATE, None)
+    try:
+        entry = _connectable_entry(slug)
+    except errors.APIError:
+        # Degrade on the way back too: warning flash, nonce left in
+        # place, never a 500 and never a false "connected".
+        flask.flash(
+            "Could not reach Campus to confirm the connection."
+            " Try Connect again in a moment.",
+            "warning",
+        )
+        return flask.redirect(flask.url_for("get_integrations_page"))
+
+    expected = flask.session.pop(connect_state_key(slug), None)
     received = flask.request.args.get("connect_state")
     if (
             not expected
@@ -277,14 +307,14 @@ def get_classroom_connect_callback():
                 received.encode(), expected.encode())
     ):
         flask.flash(
-            "Classroom was not connected. Try Connect again; if Campus"
-            " asked you to sign in during the flow, sign in to Campus"
-            " Profile once more first.",
+            f"{entry.title} was not connected. Try Connect again; if"
+            " Campus asked you to sign in during the flow, sign in to"
+            " Campus Profile once more first.",
             "warning",
         )
         return flask.redirect(flask.url_for("get_integrations_page"))
 
-    flask.flash("Classroom connected", "success")
+    flask.flash(f"{entry.title} connected", "success")
     return flask.redirect(flask.url_for("get_integrations_page"))
 
 

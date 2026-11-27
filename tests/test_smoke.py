@@ -174,10 +174,10 @@ class SmokeTest(unittest.TestCase):
         self.assertTrue(any("/profile/" in rule for rule in rules))
         self.assertTrue(any("/profile/integrations" in rule for rule in rules))
         self.assertTrue(any(
-            "/profile/integrations/classroom/connect" in rule
+            "/profile/integrations/<slug>/connect" in rule
             for rule in rules))
         self.assertTrue(any(
-            "/profile/integrations/classroom/callback" in rule
+            "/profile/integrations/<slug>/callback" in rule
             for rule in rules))
         self.assertTrue(any(
             "/profile/integrations/<slug>/disconnect" in rule
@@ -587,7 +587,8 @@ class DisconnectRouteTest(_SignedInTest):
 
 
 class ConnectFlowTest(_SignedInTest):
-    """The campus.auth classroom connect flow (profile#23, #25 URL source)."""
+    """The generic campus.auth connect flow (#70; profile#23, #25 URL
+    source) -- the existing paths exercise it with slug="classroom"."""
 
     def _registry_client(self):
         client = _campus({
@@ -600,7 +601,7 @@ class ConnectFlowTest(_SignedInTest):
         """Connect starts the campus.auth flow with a session-bound nonce."""
         self._registry_client()
         self._signed_in("/profile/integrations/classroom/connect")
-        response = self.main.get_classroom_connect()
+        response = self.main.get_integration_connect(slug="classroom")
 
         location = response.headers["Location"]
         prefix = ("https://campusauth-development.up.railway.app"
@@ -614,14 +615,15 @@ class ConnectFlowTest(_SignedInTest):
             "/profile/integrations/classroom/callback")
         nonce = parse_qs(urlparse(target).query)["connect_state"][0]
         self.assertEqual(
-            nonce, self.flask.session[self.main.CLASSROOM_CONNECT_STATE])
+            nonce,
+            self.flask.session[self.main.connect_state_key("classroom")])
         self.assertTrue(len(nonce) >= 32)  # token_urlsafe randomness
 
     def test_connect_authorize_path_comes_from_the_registry(self):
         """The authorize URL is registry-sourced, not hardcoded (#25)."""
         client = self._registry_client()
         self._signed_in("/profile/integrations/classroom/connect")
-        self.main.get_classroom_connect()
+        self.main.get_integration_connect(slug="classroom")
 
         method, path, _ = client.auth.client.calls[0]
         self.assertEqual((method, path), ("GET", "/integrations/v1/"))
@@ -634,7 +636,7 @@ class ConnectFlowTest(_SignedInTest):
         })
         self._patch_client(client)
         self._signed_in("/profile/integrations/classroom/connect")
-        response = self.main.get_classroom_connect()
+        response = self.main.get_integration_connect(slug="classroom")
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
@@ -647,39 +649,66 @@ class ConnectFlowTest(_SignedInTest):
         """A fresh Connect overwrites any stale nonce from an abandoned flow."""
         self._registry_client()
         self._signed_in("/profile/integrations/classroom/connect")
-        self.flask.session[self.main.CLASSROOM_CONNECT_STATE] = "stale"
-        self.main.get_classroom_connect()
+        self.flask.session[
+            self.main.connect_state_key("classroom")] = "stale"
+        self.main.get_integration_connect(slug="classroom")
         self.assertNotEqual(
-            self.flask.session[self.main.CLASSROOM_CONNECT_STATE], "stale")
+            self.flask.session[self.main.connect_state_key("classroom")],
+            "stale")
+
+    def test_connect_unknown_slug_is_404(self):
+        """A slug outside the registry has no connect flow (#70)."""
+        from werkzeug.exceptions import NotFound
+
+        self._registry_client()
+        self._signed_in("/profile/integrations/whiteboards/connect")
+        with self.assertRaises(NotFound):
+            self.main.get_integration_connect(slug="whiteboards")
+
+    def test_connect_non_connectable_stub_is_404(self):
+        """The calendar stub has no connect flow while it is not
+        connectable; the button appears if campus.auth ever flips the
+        registry flag (#70)."""
+        from werkzeug.exceptions import NotFound
+
+        self._registry_client()
+        self._signed_in("/profile/integrations/calendar/connect")
+        with self.assertRaises(NotFound):
+            self.main.get_integration_connect(slug="calendar")
 
     def test_callback_accepts_matching_nonce(self):
         """A genuine callback flashes success and clears the nonce."""
+        self._registry_client()
         self._signed_in(
             "/profile/integrations/classroom/callback"
             "?connect_state=expected-nonce")
-        self.flask.session[self.main.CLASSROOM_CONNECT_STATE] = \
-            "expected-nonce"
+        self.flask.session[
+            self.main.connect_state_key("classroom")] = "expected-nonce"
 
-        response = self.main.get_classroom_connect_callback()
+        response = self.main.get_integration_connect_callback(
+            slug="classroom")
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             urlparse(response.headers["Location"]).path,
             "/profile/integrations")
         self.assertNotIn(
-            self.main.CLASSROOM_CONNECT_STATE, self.flask.session)
+            self.main.connect_state_key("classroom"), self.flask.session)
         flashes = self.flask.get_flashed_messages(with_categories=True)
-        self.assertEqual(flashes, [("success", "Classroom connected")])
+        self.assertEqual(
+            flashes, [("success", "Google Classroom connected")])
 
     def test_callback_rejects_mismatched_nonce(self):
         """A nonce this flow did not issue is treated as not connected."""
+        self._registry_client()
         self._signed_in(
             "/profile/integrations/classroom/callback"
             "?connect_state=forged")
-        self.flask.session[self.main.CLASSROOM_CONNECT_STATE] = \
-            "expected-nonce"
+        self.flask.session[
+            self.main.connect_state_key("classroom")] = "expected-nonce"
 
-        response = self.main.get_classroom_connect_callback()
+        response = self.main.get_integration_connect_callback(
+            slug="classroom")
 
         self.assertEqual(
             urlparse(response.headers["Location"]).path,
@@ -690,15 +719,26 @@ class ConnectFlowTest(_SignedInTest):
 
     def test_callback_rejects_missing_nonce(self):
         """A direct callback visit (stale nonce) is not a success."""
+        self._registry_client()
         self._signed_in("/profile/integrations/classroom/callback")
 
-        response = self.main.get_classroom_connect_callback()
+        response = self.main.get_integration_connect_callback(
+            slug="classroom")
 
         self.assertEqual(
             urlparse(response.headers["Location"]).path,
             "/profile/integrations")
         flashes = self.flask.get_flashed_messages(with_categories=True)
         self.assertEqual(flashes[0][0], "warning")
+
+    def test_callback_unknown_slug_is_404(self):
+        """A slug outside the registry has no callback either (#70)."""
+        from werkzeug.exceptions import NotFound
+
+        self._registry_client()
+        self._signed_in("/profile/integrations/whiteboards/callback")
+        with self.assertRaises(NotFound):
+            self.main.get_integration_connect_callback(slug="whiteboards")
 
 
 class RouteSmokeTest(unittest.TestCase):
