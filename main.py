@@ -57,9 +57,12 @@ login_manager = flask_campus.OAuthLoginManager(
     # hostname — the root-level /login that four consumer apps share
     # is not dispatchable. The OAuth callback and every login_required
     # redirect follow the prefix automatically; PUBLIC_URL stays a
-    # bare origin (callback = PUBLIC_URL + prefix). Inert at the
-    # origin domain until the registry entry (campus#1291) exists and
-    # PUBLIC_URL flips — last, per the additive-then-flip sequence.
+    # bare origin (callback = PUBLIC_URL + prefix). Not inert at
+    # deploy time: the callback path changes the moment this deploys
+    # (both Railway envs deploy from main on push), so the additive
+    # redirect_uri entries (campus#1291) must be registered before or
+    # with the deploy — done 2026-11-27 for both origins. The
+    # PUBLIC_URL gateway flip is last, per additive-then-flip.
     login_prefix="/profile",
 )
 
