@@ -69,6 +69,8 @@ Python 3.11, 3.12 and 3.13 for every push/PR to `main` and `dev`.
 
 - `main.py` — the Flask app and all routes:
   - `/` — public landing page
+  - `/health` — fleet liveness probe (`200 "ok"`; no auth, no session,
+    no downstream calls)
   - `/profile/` — profile page (login required)
   - `/profile/integrations` — integration cards enumerated from the
     campus.auth registry, with per-user connection status

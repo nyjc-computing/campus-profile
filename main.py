@@ -87,6 +87,15 @@ def get_index_page():
     """
     return flask.render_template("index.html")
 
+@app.get("/health")
+def get_health():
+    """Fleet liveness (#842): every deployment serves GET /health with
+    a plain answer that never touches storage or downstream services,
+    so a healthcheck can tell a deploy that booted from one that 500s
+    on every page (the #1107 incident mode).
+    """
+    return "ok"
+
 @app.get("/profile/")
 @login_manager.login_required
 def get_profile_page():
