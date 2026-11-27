@@ -19,6 +19,22 @@ Notes for coding agents (and human contributors) working in this repo.
   `poetry run python tools/run_preview.py --port 5001`.
   Don't click Log out / Sign in / Connect there; they leave the stub.
 
+## Railway deploy gotchas
+
+- **The start command is platform-side**: an instance override on BOTH
+  environments (`gunicorn --bind "[::]:${PORT:-8080}" main:app` — dual-stack,
+  the Railway mesh is IPv6-only). There is deliberately no Procfile (Railpack
+  deprecates them; removed in #82) and no `railway.json` yet — the override is
+  the only start definition, so never clear it without setting a replacement.
+  Edit via the GraphQL API (`railway api`): clearing needs
+  `input: { startCommand: "" }` (`null` is a silent no-op); *setting* a value
+  does not auto-redeploy — force one with the `serviceInstanceDeploy` mutation
+  (`latestCommit: true`).
+- **Gateway paths are wired per environment**: `PROFILE_HOST`/`PROFILE_PORT`
+  etc. live on the campus-gateway service instance (see campus
+  `deploy/gateway/README.md`). An unwired path 502s with nginx resolving the
+  `downstream-unrouted.invalid` Dockerfile placeholder.
+
 ## Flask/app gotchas
 
 - **Templates are cached when debug is off** — the deployed app and local
