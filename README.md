@@ -79,13 +79,25 @@ Python 3.11, 3.12 and 3.13 for every push/PR to `main` and `dev`.
   - `GET /profile/integrations/<slug>/connect` + `/callback` — generic
     connect flow via campus.auth for any integration the registry marks
     connectable, protected by a per-slug session nonce (#70)
+  - `GET /profile/events` — My-events page (login required): upcoming /
+    pending / attended, served from the events fake-data seam (#85)
+- `integrations.py` — builds the integration cards and handles
+  connection status/disconnect. The registry is the catalog: this app
+  keeps no list of integrations and never touches token material.
+- `events.py` — My-events data behind a fake-data seam (#85): demo
+  fixtures today, the single swap point for the future campus events
+  service. Nothing here imports flask.
+- `events_views.py` — the events blueprint; its views are defined in
+  `init_events(app, login_manager)` — the feature-module factory
+  pattern (see AGENTS.md).
 - `integrations.py` — builds the integration cards and handles
   connection status/disconnect. The registry is the catalog: this app
   keeps no list of integrations and never touches token material.
 - `templates/` + `static/` — Bootstrap 5 UI. Templates are cached when
   debug is off (see the gotcha in `AGENTS.md`).
-- `tests/test_smoke.py` — unittest suite: unit tests, view-level tests
-  against faked campus clients, and route-guard tests.
+- `tests/` — unittest suite: unit tests, view-level tests against
+  faked campus clients and the events seam, and route-guard tests
+  (`test_smoke.py`, `test_events.py`).
 
 ## Deployment
 

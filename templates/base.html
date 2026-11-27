@@ -16,6 +16,7 @@
                 {% if g.user %}
                 <div class="d-flex align-items-center gap-3">
                     <span class="text-muted small d-none d-md-inline">{{ g.user.email }}</span>
+                    <a class="link-secondary small" href="{{ url_for('events.get_events_page') }}">My events</a>
                     <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('auth.logout') }}">Log out</a>
                 </div>
                 {% else %}

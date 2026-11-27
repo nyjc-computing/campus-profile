@@ -18,8 +18,13 @@
         </div>
     </div>
 
-    <a class="btn btn-outline-primary mt-3" href="{{ url_for('get_integrations_page') }}">
-        <i class="bi bi-plug me-1"></i>Your integrations
-    </a>
+    <div class="mt-3 d-flex gap-2">
+        <a class="btn btn-outline-primary" href="{{ url_for('get_integrations_page') }}">
+            <i class="bi bi-plug me-1"></i>Your integrations
+        </a>
+        <a class="btn btn-outline-primary" href="{{ url_for('events.get_events_page') }}">
+            <i class="bi bi-calendar-event me-1"></i>My events
+        </a>
+    </div>
 </div>
 {% endblock %}

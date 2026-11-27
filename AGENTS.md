@@ -45,3 +45,10 @@ Notes for coding agents (and human contributors) working in this repo.
   calls and non-GET query params (campus#772, campus-api-python#68).
   This lock's pins (campus-suite 518a9fa, campus-api-python 9563443)
   include both fixes — re-check if the lock ever moves backwards.
+- **Feature modules use the blueprint factory pattern** (since #85):
+  a feature's routes live in `<feature>_views.py`, with views defined
+  inside `init_<feature>(app, login_manager)` so login protection is
+  injected. Importing login_manager from main at module level would
+  double-import main when run as a script (`python main.py`). The
+  feature's data stays in a flask-free seam module (`events.py`) —
+  the single swap point for the future real backend.

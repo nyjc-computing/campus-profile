@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}My events — Campus Profile{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center gap-2">
+        <h1 class="h3 mb-0">My events</h1>
+        {% if demo_data %}
+        <span class="badge bg-warning text-dark"
+              title="Sample events for development — campus has no events service yet.">Demo data</span>
+        {% endif %}
+    </div>
+
+    {# Sections come from the events seam (#85): upcoming (confirmed,
+       ahead), pending (awaiting organiser confirmation), attended
+       (past). Cards mirror the integrations grid. #}
+    {% for key, heading, empty_text in [
+        ('upcoming', 'Upcoming', 'No upcoming events — check back soon.'),
+        ('pending', 'Pending', 'Nothing is awaiting confirmation.'),
+        ('attended', 'Attended', 'No attended events yet.'),
+    ] %}
+    <h2 class="h5 mt-4 mb-2">{{ heading }}</h2>
+    {% set items = sections[key] %}
+    {% if items %}
+    <div class="integration-grid">
+        {% for ev in items %}
+        <div class="card integration-card">
+            <div class="card-body p-2 px-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar-event fs-4"></i>
+                    <span class="text-truncate" title="{{ ev.title }}">{{ ev.title }}</span>
+                    <span class="badge {{ ev.badge }} ms-auto flex-shrink-0">{{ ev.badge_label }}</span>
+                </div>
+                <p class="text-muted small mb-1 mt-1">
+                    {{ ev.when }}{% if ev.location %} · {{ ev.location }}{% endif %}
+                </p>
+                {% if ev.description %}
+                <p class="text-muted small mb-2">{{ ev.description }}</p>
+                {% endif %}
+                {% if ev.calendar_url %}
+                <a class="btn btn-sm btn-outline-primary" href="{{ ev.calendar_url }}" target="_blank" rel="noopener">
+                    <i class="bi bi-calendar-plus me-1"></i>Add to Calendar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">{{ empty_text }}</p>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endblock %}

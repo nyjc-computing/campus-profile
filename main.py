@@ -12,6 +12,7 @@ from campus.flask_campus.audit import init_tracing as init_audit_tracing
 from campus.model import Integration, User
 from campus_python import Campus, errors
 
+import events_views
 import integrations
 
 app = flask.Flask(__name__)
@@ -67,6 +68,11 @@ login_manager = flask_campus.OAuthLoginManager(
 )
 
 login_manager.init_app(app)
+
+# My-events blueprint (#85): views are defined and login-protected
+# inside events_views.init_events, which also registers the blueprint.
+# Factory wiring — see that module's docstring for why.
+events_views.init_events(app, login_manager)
 
 
 @app.template_filter("timestamp")
